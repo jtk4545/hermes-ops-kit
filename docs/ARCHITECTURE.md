@@ -2,6 +2,56 @@
 
 This kit is an **ops layer on top of Hermes Agent**. It does not replace Hermes; it adds a shared brain, roadmap UI, audit control plane, and a multi-job daily pipeline.
 
+## System overview
+
+```mermaid
+flowchart LR
+  subgraph inputs [Inputs]
+    Config[ops-config.yaml]
+    GH[GitHub]
+    Human[Human HITL]
+  end
+
+  subgraph runtime [Runtime]
+    Gateway[Hermes gateway cron]
+    Scripts[Scripts no_agent]
+    Agents[Agent jobs + skills]
+  end
+
+  subgraph state [State]
+    Brain[Brain md files]
+    Roadmap[roadmaps.json]
+    Audit[AUDIT.jsonl]
+  end
+
+  subgraph outputs [Outputs]
+    PRs[PRs + auto-merge]
+    UI[UI :8888]
+    TG[Telegram sparse]
+  end
+
+  Config --> Scripts
+  Config --> Agents
+  Gateway --> Scripts
+  Gateway --> Agents
+  Scripts --> Brain
+  Scripts --> Audit
+  Agents --> Brain
+  Agents --> Roadmap
+  Agents --> Audit
+  Agents --> PRs
+  GH --> Scripts
+  Scripts --> PRs
+  Human --> Roadmap
+  Roadmap --> UI
+  Brain --> UI
+  Audit --> UI
+  Agents -->|HITL failure daily report| TG
+  Scripts -->|RED APPROVAL reminders| TG
+```
+
+**Read this left → right:** config and GitHub feed script/agent jobs driven by the Hermes gateway. Jobs mutate brain/roadmap/audit. Humans clear HITL via the UI. Telegram stays quiet except failures, approvals, and the daily report.
+
 ## Day pipeline
 
 ```text
@@ -17,6 +67,29 @@ This kit is an **ops layer on top of Hermes Agent**. It does not replace Hermes;
 */5    Roadmap UI watchdog (:8888)
 18:00  Market research → MARKET / BUYERS
 21:00  Daily ops review + Telegram day report
+```
+
+```mermaid
+flowchart TD
+  c0600[06:00 consolidate] --> c0615[06:15 mirror sync]
+  c0615 --> c0700[07:00 sentinel]
+  c0700 --> c0800[08:00 CI scan]
+  c0800 -->|wakeAgent| autofix[Autofix agent]
+  c0800 --> c0930[09:30 PM]
+  c0930 --> c1000[10:00 / 14:00 executor]
+  c1000 --> prs[hermes-exec PRs]
+  autofix --> afPRs[hermes-autofix PRs]
+  prs --> monitor[*/30 PR monitor]
+  afPRs --> monitor
+  monitor -->|green| merge[Auto-merge]
+  monitor -->|hold| approval[APPROVAL Telegram]
+  c0930 -->|blocked| needsYou[Needs you UI]
+  c1000 -->|blocked| needsYou
+  needsYou --> hq[*/15 human queue]
+  hq -->|backoff| tgRemind[Telegram reminder]
+  needsYou -->|release| c1000
+  c1800[18:00 market] --> brain[Brain MARKET BUYERS]
+  c2100[21:00 ops review] --> dayReport[Telegram day report]
 ```
 
 ## Control planes

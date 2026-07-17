@@ -14,6 +14,92 @@ This is an **ops layer on top of Hermes** — not a Hermes fork. You need the `h
 
 **Not included:** your live brain content, cron history, tokens, or product-specific secrets.
 
+## How it works
+
+Hermes Agent’s **gateway** runs a cron ticker. This kit installs scripts, skills, and job templates into `$HERMES_HOME`. Each day those jobs read/write a shared **brain** and **roadmap**, record everything in an **audit** log, and only ping **Telegram** for failures, human-in-the-loop gates, or the evening ops report. Progress otherwise stays in the local UI (`:8888`).
+
+```mermaid
+flowchart TB
+  subgraph you [You]
+    UI["Roadmap / Jobs / Audit UI\n:8888"]
+    TG[Telegram]
+  end
+
+  subgraph hermes [Hermes gateway]
+    Cron[Cron ticker]
+  end
+
+  subgraph day [Daily pipeline]
+    Consol[Brain consolidate]
+    Sent[Project sentinel]
+    CI[CI scan + autofix]
+    PM[Product manager]
+    Exec[Roadmap executor]
+    Market[Market research]
+    Ops[Daily ops review]
+  end
+
+  subgraph alwaysOn [Always-on]
+    PRMon[PR monitor merge-on-green]
+    HumanQ[Human queue watch]
+    AuditIn[Audit ingest]
+    UIwd[UI watchdog]
+  end
+
+  subgraph sot [Shared state]
+    Brain["Brain\nPRODUCTS PIPELINES MARKET…"]
+    Roadmap["roadmaps.json\nagent vs human + HITL"]
+    Audit["AUDIT.jsonl"]
+  end
+
+  subgraph external [External]
+    GH[GitHub repos + Actions]
+  end
+
+  Cron --> day
+  Cron --> alwaysOn
+
+  Consol --> Brain
+  Sent --> Brain
+  CI --> GH
+  CI --> Brain
+  CI --> Audit
+  PM --> Roadmap
+  PM --> Brain
+  Exec --> Roadmap
+  Exec --> GH
+  Exec --> Brain
+  Exec --> Audit
+  Market --> Brain
+  Ops --> Audit
+  Ops --> TG
+
+  PRMon --> GH
+  PRMon -->|RED or APPROVAL| TG
+  HumanQ -->|HITL reminders| TG
+  HumanQ --> Roadmap
+  AuditIn --> Audit
+  UIwd --> UI
+
+  PM -->|Needs you| UI
+  Exec -->|Needs you| UI
+  UI -->|release to agent| Roadmap
+  Brain --> UI
+  Audit --> UI
+  Roadmap --> UI
+```
+
+**Loop in plain language**
+
+1. **Sense** — Sentinel and CI scan check local projects and GitHub Actions; results land in the brain / audit.
+2. **Plan** — The PM cron classifies roadmap work as `owner=agent` or `owner=human`, with exact HITL steps when you must act.
+3. **Ship** — The executor runs a timeboxed dev-test loop on agent items, opens `hermes-exec` PRs, and enables auto-merge when safe. Autofix does the same for red CI (`hermes-autofix`).
+4. **Merge** — PR monitor merges green labeled PRs; approval holds wait for your `yes` (weekdays).
+5. **Unblock** — Blocked items show in the UI **Needs you** panel; releasing them returns ownership to the agent. Human-queue watch reminds on Telegram with backoff.
+6. **Review** — Evening digest + ops review grades the day from the audit scorecard and always sends the daily Telegram report.
+
+Sparse Telegram: routine success is `[SILENT]` (or empty script stdout). Detail lives in audit + UI. More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Prerequisites
 
 1. Hermes Agent installed (`hermes` on PATH)
