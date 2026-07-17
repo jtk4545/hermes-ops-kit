@@ -1,0 +1,207 @@
+{
+  "jobs": [
+    {
+      "id": "a1brain0600",
+      "name": "Brain consolidate",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 6 * * *",
+        "display": "0 6 * * *"
+      },
+      "deliver": "local",
+      "no_agent": true,
+      "script": "brain_consolidate.py",
+      "prompt": null
+    },
+    {
+      "id": "41cb7755ae6d",
+      "name": "Project Sentinel — Daily Health Check",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 7 * * *",
+        "display": "0 7 * * *"
+      },
+      "deliver": "telegram",
+      "no_agent": true,
+      "script": "project-sentinel.py",
+      "prompt": null
+    },
+    {
+      "id": "026c0a4c82b7",
+      "name": "CI scan + autofix (wake on failure)",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 8,12,16,20 * * *",
+        "display": "0 8,12,16,20 * * *"
+      },
+      "deliver": "telegram",
+      "no_agent": false,
+      "script": "pipeline-scan.py",
+      "model": "{{MODEL_AUTOFIX}}",
+      "provider": "{{PROVIDER_AUTOFIX}}",
+      "skills": [
+        "quality-principles",
+        "auto-pr-fixer",
+        "github-pr-automation",
+        "systematic-debugging",
+        "human-approval",
+        "brain"
+      ],
+      "prompt": "You are the CI autofix agent. Follow auto-pr-fixer, systematic-debugging, human-approval, brain, quality-principles.\n\nCONTEXT (required first):\npython {{HERMES_HOME_POSIX}}/scripts/ops_audit.py recent --job 026c0a4c82b7 -n 5\npython {{HERMES_HOME_POSIX}}/scripts/ops_audit.py recent --status blocked -n 8\n\nCONTRACT:\n1) brain_read.py --sections PRODUCTS,DECISIONS,PIPELINES,PRINCIPLES,PR_QUALITY\n2) Use pipeline-scan output for NEW failures on tracked branches (skip release/prod).\n3) Max 1 open hermes-autofix PR per repo: real code fix, push, PR linking the failing run.\n4) Prefer HERMES_GH_TOKEN bot identity when set.\n5) If blocked: human_block_format + HITL Telegram (weekdays). Else after audit: EXACTLY [SILENT].\n\nTELEGRAM (strict — default quiet):\nFinal response rules (enforced):\n- Default: respond with EXACTLY `[SILENT]` and nothing else (after ops_audit append).\n- Put all routine progress ONLY in audit / roadmap / brain — NOT in the final response.\nSend Telegram content ONLY when:\n(a) failure / needs attention, OR\n(b) human-in-the-loop required (full human_block_format.py packet) — weekdays; weekends follow WEEKEND POLICY, OR\n(c) you are the Daily Ops Review job — always send the OPS DAY REPORT.\nNever Telegram for: successful PRs/merges, roadmap edits, market updates, idle progress, or \"job ran OK\".\n\nWEEKEND POLICY (Sat/Sun in configured timezone):\n- Keep doing agent/script work. Avoid new HITL Telegram asks.\n- If hard human gate: mark roadmap blocked, prefix blocked_reason with \"WEEKEND-DEFER: \", audit as blocked, continue other agent items — do NOT deliver human_block_format to Telegram.\n- human_queue_watch suppresses reminder pings on weekends; pr-monitor merges green but suppresses APPROVAL Telegram.\n\nAUDIT (required before finish):\npython {{HERMES_HOME_POSIX}}/scripts/ops_audit.py append --job 026c0a4c82b7 --name \"CI scan + autofix\" --status ok|error|partial|blocked|silent --summary \"one line\" --detail \"optional\" --artifact <path_or_url> [--repo owner/name] [--pr-url URL] [--roadmap-item \"name\"] [--human-gate \"ACTION: ...\"|\"APPROVAL: ...\"] [--model <id>]\nAlways append an audit event even on [SILENT] (use --status silent).\n\n"
+    },
+    {
+      "id": "b2prmon30m",
+      "name": "PR monitor (merge-on-green)",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/30 * * * *",
+        "display": "*/30 * * * *"
+      },
+      "deliver": "telegram",
+      "no_agent": true,
+      "script": "pr-monitor.py",
+      "prompt": null
+    },
+    {
+      "id": "c3pm0930",
+      "name": "Product manager (roadmap)",
+      "schedule": {
+        "kind": "cron",
+        "expr": "30 9 * * *",
+        "display": "30 9 * * *"
+      },
+      "deliver": "telegram",
+      "no_agent": false,
+      "script": null,
+      "model": "{{MODEL_PM}}",
+      "provider": "{{PROVIDER_PM}}",
+      "skills": [
+        "quality-principles",
+        "brain",
+        "roadmap",
+        "human-approval"
+      ],
+      "prompt": "You are the Product Manager cron. Follow skills: roadmap, human-approval, brain, quality-principles.\n\nCONTEXT (required first):\npython {{HERMES_HOME_POSIX}}/scripts/ops_audit.py recent --job c3pm0930 -n 5\npython {{HERMES_HOME_POSIX}}/scripts/ops_audit.py recent --status blocked -n 8\n\nCONTRACT:\n1) brain_read.py --sections INDEX,PRODUCTS,MARKET,BUYERS,PIPELINES,DECISIONS,PRINCIPLES\n2) roadmap_cli.py show\n3) Create/update/move items (no application code). Set owner=agent|human. Human items need --human-actions.\n4) If NEW HITL gate: human_block_format.py as final response. Else after audit: EXACTLY [SILENT]. No PM brief on Telegram.\n\nTELEGRAM (strict — default quiet):\nFinal response rules (enforced):\n- Default: respond with EXACTLY `[SILENT]` and nothing else (after ops_audit append).\n- Put all routine progress ONLY in audit / roadmap / brain — NOT in the final response.\nSend Telegram content ONLY when:\n(a) failure / needs attention, OR\n(b) human-in-the-loop required (full human_block_format.py packet) — weekdays; weekends follow WEEKEND POLICY, OR\n(c) you are the Daily Ops Review job — always send the OPS DAY REPORT.\nNever Telegram for: successful PRs/merges, roadmap edits, market updates, idle progress, or \"job ran OK\".\n\nWEEKEND POLICY (Sat/Sun in configured timezone):\n- Keep doing agent/script work. Avoid new HITL Telegram asks.\n- If hard human gate: mark roadmap blocked, prefix blocked_reason with \"WEEKEND-DEFER: \", audit as blocked, continue other agent items — do NOT deliver human_block_format to Telegram.\n- human_queue_watch suppresses reminder pings on weekends; pr-monitor merges green but suppresses APPROVAL Telegram.\n\nAUDIT (required before finish):\npython {{HERMES_HOME_POSIX}}/scripts/ops_audit.py append --job c3pm0930 --name \"Product manager\" --status ok|error|partial|blocked|silent --summary \"one line\" --detail \"optional\" --artifact <path_or_url> [--repo owner/name] [--pr-url URL] [--roadmap-item \"name\"] [--human-gate \"ACTION: ...\"|\"APPROVAL: ...\"] [--model <id>]\nAlways append an audit event even on [SILENT] (use --status silent).\n\n"
+    },
+    {
+      "id": "d4exec1014",
+      "name": "Roadmap executor",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 10,14 * * *",
+        "display": "0 10,14 * * *"
+      },
+      "deliver": "telegram",
+      "no_agent": false,
+      "script": null,
+      "model": "{{MODEL_EXECUTOR}}",
+      "provider": "{{PROVIDER_EXECUTOR}}",
+      "skills": [
+        "quality-principles",
+        "dev-test-loop",
+        "human-approval",
+        "brain",
+        "roadmap",
+        "test-driven-development",
+        "systematic-debugging",
+        "github-pr-workflow",
+        "github-pr-automation"
+      ],
+      "prompt": "You are the Roadmap Executor. Follow skills: dev-test-loop (primary), human-approval, roadmap, brain, quality-principles.\n\nCONTEXT (required first):\npython {{HERMES_HOME_POSIX}}/scripts/ops_audit.py recent --job d4exec1014 -n 5\npython {{HERMES_HOME_POSIX}}/scripts/ops_audit.py recent --status blocked -n 8\n\nTIMEBOX: ~20–30 minutes of useful progress. Decompose large items onto the roadmap with priority. Add follow-ups before exit.\n\nCONTRACT:\n1) brain_read.py --sections PRODUCTS,DECISIONS,MARKET,PIPELINES,PRINCIPLES,PR_QUALITY\n2) roadmap_cli.py show — pick highest-priority In Progress owner=agent blocked=false (else promote Upcoming).\n3) Full dev-test loop; PR label hermes-exec; enable auto-merge when safe. Prefer HERMES_GH_TOKEN.\n4) HITL: owner=human blocked=true ACTION:/APPROVAL: + human_actions; human_block_format on weekdays.\n5) After audit with no HITL/failure: final response EXACTLY [SILENT] (even if you shipped PRs).\n\nTELEGRAM (strict — default quiet):\nFinal response rules (enforced):\n- Default: respond with EXACTLY `[SILENT]` and nothing else (after ops_audit append).\n- Put all routine progress ONLY in audit / roadmap / brain — NOT in the final response.\nSend Telegram content ONLY when:\n(a) failure / needs attention, OR\n(b) human-in-the-loop required (full human_block_format.py packet) — weekdays; weekends follow WEEKEND POLICY, OR\n(c) you are the Daily Ops Review job — always send the OPS DAY REPORT.\nNever Telegram for: successful PRs/merges, roadmap edits, market updates, idle progress, or \"job ran OK\".\n\nWEEKEND POLICY (Sat/Sun in configured timezone):\n- Keep doing agent/script work. Avoid new HITL Telegram asks.\n- If hard human gate: mark roadmap blocked, prefix blocked_reason with \"WEEKEND-DEFER: \", audit as blocked, continue other agent items — do NOT deliver human_block_format to Telegram.\n- human_queue_watch suppresses reminder pings on weekends; pr-monitor merges green but suppresses APPROVAL Telegram.\n\nAUDIT (required before finish):\npython {{HERMES_HOME_POSIX}}/scripts/ops_audit.py append --job d4exec1014 --name \"Roadmap executor\" --status ok|error|partial|blocked|silent --summary \"one line\" --detail \"optional\" --artifact <path_or_url> [--repo owner/name] [--pr-url URL] [--roadmap-item \"name\"] [--human-gate \"ACTION: ...\"|\"APPROVAL: ...\"] [--model <id>]\nAlways append an audit event even on [SILENT] (use --status silent).\n\n"
+    },
+    {
+      "id": "e5market184",
+      "name": "Market research",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 18 * * *",
+        "display": "0 18 * * *"
+      },
+      "deliver": "telegram",
+      "no_agent": false,
+      "script": null,
+      "model": "{{MODEL_MARKET}}",
+      "provider": "{{PROVIDER_MARKET}}",
+      "skills": [
+        "quality-principles",
+        "brain",
+        "web"
+      ],
+      "prompt": "You are the Market Research cron. Follow quality-principles.\n\nCONTEXT:\npython {{HERMES_HOME_POSIX}}/scripts/ops_audit.py recent --job e5market184 -n 5\n\nCONTRACT:\n1) brain_read.py --sections PRODUCTS,BUYERS,MARKET,PRINCIPLES\n2) Gather concise market notes per product; update BUYERS.\n3) Persist via brain_write.py MARKET/BUYERS.\n4) Final response EXACTLY [SILENT] unless failure/HITL.\n\nTELEGRAM (strict — default quiet):\nFinal response rules (enforced):\n- Default: respond with EXACTLY `[SILENT]` and nothing else (after ops_audit append).\n- Put all routine progress ONLY in audit / roadmap / brain — NOT in the final response.\nSend Telegram content ONLY when:\n(a) failure / needs attention, OR\n(b) human-in-the-loop required (full human_block_format.py packet) — weekdays; weekends follow WEEKEND POLICY, OR\n(c) you are the Daily Ops Review job — always send the OPS DAY REPORT.\nNever Telegram for: successful PRs/merges, roadmap edits, market updates, idle progress, or \"job ran OK\".\n\nWEEKEND POLICY (Sat/Sun in configured timezone):\n- Keep doing agent/script work. Avoid new HITL Telegram asks.\n- If hard human gate: mark roadmap blocked, prefix blocked_reason with \"WEEKEND-DEFER: \", audit as blocked, continue other agent items — do NOT deliver human_block_format to Telegram.\n- human_queue_watch suppresses reminder pings on weekends; pr-monitor merges green but suppresses APPROVAL Telegram.\n\nAUDIT (required before finish):\npython {{HERMES_HOME_POSIX}}/scripts/ops_audit.py append --job e5market184 --name \"Market research\" --status ok|error|partial|blocked|silent --summary \"one line\" --detail \"optional\" --artifact <path_or_url> [--repo owner/name] [--pr-url URL] [--roadmap-item \"name\"] [--human-gate \"ACTION: ...\"|\"APPROVAL: ...\"] [--model <id>]\nAlways append an audit event even on [SILENT] (use --status silent).\n\n"
+    },
+    {
+      "id": "f6ops2100",
+      "name": "Daily ops review",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 21 * * *",
+        "display": "0 21 * * *"
+      },
+      "deliver": "telegram",
+      "no_agent": false,
+      "script": "ops_day_digest.py",
+      "model": "{{MODEL_OPS_REVIEW}}",
+      "provider": "{{PROVIDER_OPS_REVIEW}}",
+      "skills": [
+        "quality-principles",
+        "ops-daily-review",
+        "brain",
+        "human-approval",
+        "roadmap"
+      ],
+      "prompt": "You are the Daily Ops Review agent. Follow skill ops-daily-review.\n\nCONTRACT:\n1) Read ~/.hermes/OPS_DESIGN.md and the digest script output (Audit day scorecard).\n2) Grade jobs; apply SAFE improvements only; log OPS_CHANGELOG.md.\n3) TELEGRAM: Always deliver the OPS DAY REPORT (never [SILENT] for this job).\n\nAUDIT:\npython {{HERMES_HOME_POSIX}}/scripts/ops_audit.py append --job f6ops2100 --name \"Daily ops review\" --status ok|partial|error --summary \"one line\"\n"
+    },
+    {
+      "id": "g7ui5m",
+      "name": "Roadmap UI watchdog",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/5 * * * *",
+        "display": "*/5 * * * *"
+      },
+      "deliver": "telegram",
+      "no_agent": true,
+      "script": "roadmap_ui_watchdog.py",
+      "prompt": null
+    },
+    {
+      "id": "g8sync0615",
+      "name": "Sync Hermes mirrors",
+      "schedule": {
+        "kind": "cron",
+        "expr": "15 6 * * *",
+        "display": "15 6 * * *"
+      },
+      "deliver": "local",
+      "no_agent": true,
+      "script": "sync_hermes_mirrors.py",
+      "prompt": null
+    },
+    {
+      "id": "g9auditingest",
+      "name": "Audit ingest (cron outputs)",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/10 * * * *",
+        "display": "*/10 * * * *"
+      },
+      "deliver": "local",
+      "no_agent": true,
+      "script": "audit_ingest_cron.py",
+      "prompt": null
+    },
+    {
+      "id": "g10humanq",
+      "name": "Human queue watch (backoff)",
+      "schedule": {
+        "kind": "cron",
+        "expr": "*/15 * * * *",
+        "display": "*/15 * * * *"
+      },
+      "deliver": "telegram",
+      "no_agent": true,
+      "script": "human_queue_watch.py",
+      "prompt": null
+    }
+  ]
+}

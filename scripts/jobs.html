@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ops jobs</title>
+<style>
+:root {
+  --bg: #0f0f1a;
+  --surface: #1a1a2e;
+  --text: #eee;
+  --muted: #9a9ab0;
+  --ok: #51cf66;
+  --warn: #ffd93d;
+  --err: #ff6b6b;
+  --accent: #00d2d3;
+  --agent: #74c0fc;
+  --script: #69db7c;
+  --hybrid: #ffa94d;
+  --bus: #ced4da;
+  --border: rgba(255,255,255,.08);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 20px;
+}
+.wrap { max-width: 1240px; margin: 0 auto; }
+header { text-align: center; margin-bottom: 12px; }
+header h1 { font-size: 1.5rem; margin-bottom: 4px; }
+header p { color: var(--muted); font-size: .88rem; }
+nav.top {
+  display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;
+}
+nav.top a {
+  color: var(--accent); text-decoration: none;
+  padding: 6px 12px; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--surface); font-size: .85rem;
+}
+nav.top a.active { border-color: var(--accent); }
+.tabs {
+  display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.tabs button {
+  appearance: none; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); padding: 8px 16px; border-radius: 6px; font-size: .9rem;
+}
+.tabs button.active {
+  border-color: var(--accent); color: var(--accent);
+  background: rgba(0,210,211,.14); font-weight: 600;
+}
+.toolbar {
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end;
+  margin-bottom: 12px;
+}
+.ctrl { display: flex; flex-direction: column; gap: 3px; }
+.ctrl label { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
+.ctrl select, .ctrl input, .btn {
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); padding: 7px 10px; border-radius: 6px; font-size: .85rem;
+}
+.btn { cursor: pointer; color: var(--accent); border-color: rgba(0,210,211,.4); }
+.status { color: var(--muted); font-size: .85rem; margin-bottom: 12px; min-height: 1.2em; }
+.status.err { color: var(--err); }
+.panel { display: none; }
+.panel.on { display: block; }
+.table-wrap {
+  overflow-x: auto; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface);
+}
+table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+th {
+  text-align: left; color: var(--muted); font-size: .7rem;
+  text-transform: uppercase; letter-spacing: .04em;
+  padding: 10px; border-bottom: 1px solid var(--border); white-space: nowrap;
+}
+td {
+  padding: 9px 10px; border-bottom: 1px solid rgba(255,255,255,.04);
+  vertical-align: top;
+}
+tr:hover td { background: rgba(255,255,255,.03); }
+tr.off td { opacity: .45; }
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: .72rem; font-weight: 600;
+}
+.mode-script { background: rgba(105,219,124,.15); color: var(--script); }
+.mode-agent { background: rgba(116,192,252,.15); color: var(--agent); }
+.mode-hybrid { background: rgba(255,169,77,.18); color: var(--hybrid); }
+.mode-bus { background: rgba(206,212,218,.12); color: var(--bus); }
+.st-ok { color: var(--ok); }
+.st-error { color: var(--err); }
+.st-null { color: var(--muted); }
+.mono { font-family: ui-monospace, Consolas, monospace; font-size: .78rem; color: var(--muted); }
+.day-block { margin-bottom: 18px; }
+.day-block h2 {
+  font-size: 1rem; margin-bottom: 8px;
+  padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.tl { display: flex; flex-direction: column; gap: 6px; }
+.tl-row {
+  display: grid; grid-template-columns: 72px 1fr; gap: 12px;
+  align-items: start; padding: 8px 10px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+}
+.tl-time {
+  font-variant-numeric: tabular-nums; font-weight: 650;
+  color: var(--accent); font-size: .9rem;
+}
+.tl-body { min-width: 0; }
+.tl-name { font-weight: 600; font-size: .92rem; }
+.tl-meta { color: var(--muted); font-size: .78rem; margin-top: 2px; }
+.desc { color: var(--muted); font-size: .82rem; line-height: 1.35; margin-top: 4px; max-width: 36rem; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.now-line {
+  border-left: 3px solid var(--warn); padding-left: 10px;
+  margin: 8px 0; color: var(--warn); font-size: .8rem; font-weight: 600;
+}
+.empty { color: var(--muted); padding: 24px; text-align: center; }
+.legend {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  color: var(--muted); font-size: .8rem; margin-bottom: 10px;
+}
+
+/* System map */
+.map-layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 960px) {
+  .map-layout { grid-template-columns: 1fr; }
+}
+.story {
+  display: flex; flex-direction: column; gap: 6px;
+  margin-bottom: 12px;
+}
+.story li {
+  color: var(--muted); font-size: .86rem; line-height: 1.4;
+  list-style: none; padding-left: 12px;
+  border-left: 2px solid rgba(0,210,211,.35);
+}
+.map-canvas {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(0,210,211,.04), transparent 40%),
+    var(--surface);
+  overflow: auto;
+}
+.map-canvas svg { display: block; width: 100%; height: auto; min-width: 900px; }
+.lane-label { fill: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .04em; }
+.lane-sub { fill: #6c6c80; font-size: 10px; }
+.edge {
+  fill: none; stroke: rgba(255,255,255,.16); stroke-width: 1.4;
+  marker-end: url(#arrow);
+}
+.edge.on { stroke: var(--accent); stroke-width: 2.2; opacity: 1; }
+.edge.dim { opacity: .12; }
+.edge-label {
+  fill: #7a7a90; font-size: 9px;
+}
+.edge-label.on { fill: var(--accent); font-weight: 600; }
+.node { cursor: pointer; }
+.node rect, .node polygon {
+  stroke: var(--border); stroke-width: 1.2;
+}
+.node.job rect { fill: #151528; }
+.node.bus polygon { fill: #1c2430; }
+.node.mode-script rect { stroke: rgba(105,219,124,.55); }
+.node.mode-agent rect { stroke: rgba(116,192,252,.55); }
+.node.mode-hybrid rect { stroke: rgba(255,169,77,.55); }
+.node.bus polygon { stroke: rgba(206,212,218,.45); }
+.node.on rect, .node.on polygon {
+  stroke: var(--accent); stroke-width: 2;
+  filter: drop-shadow(0 0 6px rgba(0,210,211,.35));
+}
+.node.dim { opacity: .22; }
+.node-title { fill: var(--text); font-size: 11px; font-weight: 650; }
+.node-sub { fill: var(--muted); font-size: 9px; }
+.detail {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 14px;
+  position: sticky; top: 12px;
+}
+.detail h3 { font-size: 1rem; margin-bottom: 6px; }
+.detail .why {
+  color: var(--text); font-size: .9rem; line-height: 1.4; margin: 8px 0 10px;
+}
+.detail .rels { margin-top: 10px; }
+.detail .rels h4 {
+  color: var(--muted); font-size: .72rem; text-transform: uppercase;
+  letter-spacing: .04em; margin: 10px 0 4px;
+}
+.detail .rels li {
+  font-size: .8rem; color: var(--muted); margin-bottom: 4px;
+  list-style: none; padding-left: 0;
+}
+.detail .rels strong { color: var(--text); font-weight: 600; }
+.hint { color: var(--muted); font-size: .82rem; line-height: 1.4; }
+@media (max-width: 700px) {
+  .tl-row { grid-template-columns: 1fr; gap: 4px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Ops jobs</h1>
+    <p>From <code>cron/jobs.json</code> · future fires via cron expansion (America/Chicago)</p>
+  </header>
+  <nav class="top">
+    <a href="/">Roadmap</a>
+    <a href="/jobs" class="active">Jobs</a>
+    <a href="/audit">Audit</a>
+  </nav>
+
+  <div class="tabs" role="tablist">
+    <button type="button" class="active" data-tab="registry">Job registry</button>
+    <button type="button" data-tab="timeline">Run timeline</button>
+    <button type="button" data-tab="map">System map</button>
+  </div>
+
+  <div id="status" class="status">Loading…</div>
+
+  <section id="panel-registry" class="panel on" aria-label="Job registry">
+    <div class="toolbar">
+      <div class="ctrl">
+        <label for="rMode">Mode</label>
+        <select id="rMode">
+          <option value="all">All</option>
+          <option value="agent">Agent</option>
+          <option value="script">Script</option>
+          <option value="hybrid">Hybrid</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <label for="rEn">Enabled</label>
+        <select id="rEn">
+          <option value="all">All</option>
+          <option value="yes" selected>Enabled only</option>
+          <option value="no">Disabled only</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <label for="rQ">Search</label>
+        <input id="rQ" type="search" placeholder="name, id, script…">
+      </div>
+      <button type="button" class="btn" id="btnRefresh">Refresh</button>
+    </div>
+    <div class="legend">
+      <span><span class="badge mode-script">script</span> no_agent</span>
+      <span><span class="badge mode-agent">agent</span> LLM cron</span>
+      <span><span class="badge mode-hybrid">hybrid</span> script + agent wake</span>
+    </div>
+    <div id="registry"></div>
+  </section>
+
+  <section id="panel-timeline" class="panel" aria-label="Run timeline">
+    <div class="toolbar">
+      <div class="ctrl">
+        <label for="tHours">Horizon</label>
+        <select id="tHours">
+          <option value="24">Next 24 hours</option>
+          <option value="48">Next 48 hours</option>
+          <option value="72" selected>Next 3 days</option>
+          <option value="168">Next 7 days</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <label for="tFreq">Frequent jobs</label>
+        <select id="tFreq">
+          <option value="0" selected>Hide */5–*/30 (cleaner)</option>
+          <option value="1">Include all (noisy)</option>
+        </select>
+      </div>
+      <button type="button" class="btn" id="btnTlRefresh">Refresh</button>
+    </div>
+    <p id="tlNote" class="status"></p>
+    <div id="timeline"></div>
+  </section>
+
+  <section id="panel-map" class="panel" aria-label="System map">
+    <ol class="story" id="mapStory"></ol>
+    <div class="legend">
+      <span><span class="badge mode-script">script</span></span>
+      <span><span class="badge mode-agent">agent</span></span>
+      <span><span class="badge mode-hybrid">hybrid</span></span>
+      <span><span class="badge mode-bus">bus</span> shared state</span>
+      <span>Click a node to see why it exists and what it connects to</span>
+    </div>
+    <div class="map-layout">
+      <div class="map-canvas" id="mapCanvas"></div>
+      <aside class="detail" id="mapDetail">
+        <p class="hint">Select any job or bus on the map to see <strong>why</strong> it runs and how it feeds the next stage.</p>
+      </aside>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var jobsCache = null;
+  var tlCache = null;
+  var graphCache = null;
+  var selectedId = null;
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function setStatus(msg, kind) {
+    var el = document.getElementById("status");
+    el.textContent = msg || "";
+    el.className = "status" + (kind ? " " + kind : "");
+  }
+
+  function fmtWhen(iso) {
+    if (!iso) return "—";
+    try {
+      var d = new Date(iso);
+      return d.toLocaleString(undefined, {
+        weekday: "short", month: "short", day: "numeric",
+        hour: "2-digit", minute: "2-digit"
+      });
+    } catch (e) {
+      return iso.slice(0, 16);
+    }
+  }
+
+  function fmtClock(iso) {
+    try {
+      return new Date(iso).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    } catch (e) {
+      return iso.slice(11, 16);
+    }
+  }
+
+  function dayTitle(day) {
+    try {
+      var d = new Date(day + "T12:00:00");
+      return d.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+    } catch (e) {
+      return day;
+    }
+  }
+
+  function switchTab(name) {
+    document.querySelectorAll(".tabs button").forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-tab") === name);
+    });
+    document.getElementById("panel-registry").classList.toggle("on", name === "registry");
+    document.getElementById("panel-timeline").classList.toggle("on", name === "timeline");
+    document.getElementById("panel-map").classList.toggle("on", name === "map");
+    if (name === "timeline" && !tlCache) loadTimeline();
+    if (name === "map" && !graphCache) loadGraph();
+    try {
+      history.replaceState(null, "", name === "registry" ? "/jobs" : "/jobs#" + name);
+    } catch (e) {}
+  }
+
+  function renderRegistry() {
+    var host = document.getElementById("registry");
+    if (!jobsCache) {
+      host.innerHTML = "<div class=\"empty\">No job data</div>";
+      return;
+    }
+    var mode = document.getElementById("rMode").value;
+    var en = document.getElementById("rEn").value;
+    var q = document.getElementById("rQ").value.trim().toLowerCase();
+    var rows = jobsCache.jobs.filter(function (j) {
+      if (mode !== "all" && j.mode !== mode) return false;
+      if (en === "yes" && !j.enabled) return false;
+      if (en === "no" && j.enabled) return false;
+      if (q) {
+        var blob = [j.id, j.name, j.description, j.script, j.model, j.provider, j.schedule_expr, j.schedule_label].join(" ").toLowerCase();
+        if (blob.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+
+    if (!rows.length) {
+      host.innerHTML = "<div class=\"empty\">No jobs match filters</div>";
+      return;
+    }
+
+    var h = "<div class=\"table-wrap\"><table><thead><tr>" +
+      "<th>Job</th><th>What it does</th><th>Mode</th><th>Schedule</th><th>Model</th>" +
+      "<th>Next run</th><th>Last</th><th>Status</th>" +
+      "</tr></thead><tbody>";
+
+    rows.forEach(function (j) {
+      var st = j.last_status || "—";
+      var stCls = st === "ok" ? "st-ok" : (st === "error" ? "st-error" : "st-null");
+      h += "<tr class=\"" + (j.enabled ? "" : "off") + "\">" +
+        "<td><div>" + esc(j.name) + "</div>" +
+          "<div class=\"mono\">" + esc(j.id) +
+          (j.script ? " · " + esc(j.script) : "") + "</div></td>" +
+        "<td><div class=\"desc\">" + esc(j.description || "") + "</div></td>" +
+        "<td><span class=\"badge mode-" + esc(j.mode) + "\">" + esc(j.mode) + "</span>" +
+          (j.frequent ? " <span class=\"mono\">freq</span>" : "") +
+          (j.enabled ? "" : " <span class=\"mono\">disabled</span>") + "</td>" +
+        "<td>" + esc(j.schedule_label) +
+          "<div class=\"mono\">" + esc(j.schedule_expr) + "</div></td>" +
+        "<td>" + esc(j.model || "—") +
+          (j.provider ? "<div class=\"mono\">" + esc(j.provider) + "</div>" : "") + "</td>" +
+        "<td>" + esc(fmtWhen(j.next_run_at)) + "</td>" +
+        "<td>" + esc(fmtWhen(j.last_run_at)) + "</td>" +
+        "<td class=\"" + stCls + "\">" + esc(st) +
+          (j.last_error ? "<div class=\"mono\">" + esc(j.last_error).slice(0, 120) + "</div>" : "") +
+        "</td></tr>";
+    });
+    h += "</tbody></table></div>";
+    host.innerHTML = h;
+  }
+
+  function renderTimeline() {
+    var host = document.getElementById("timeline");
+    var note = document.getElementById("tlNote");
+    if (!tlCache) {
+      host.innerHTML = "<div class=\"empty\">No timeline data</div>";
+      return;
+    }
+    var hidden = tlCache.hidden_frequent || [];
+    note.textContent = tlCache.event_count + " upcoming run" +
+      (tlCache.event_count === 1 ? "" : "s") + " in " + tlCache.horizon_hours + "h" +
+      (hidden.length ? " · hiding frequent: " + hidden.join(", ") : "");
+
+    if (!tlCache.days || !tlCache.days.length) {
+      host.innerHTML = "<div class=\"empty\">Nothing scheduled in this horizon</div>";
+      return;
+    }
+
+    var now = Date.now();
+    var h = "";
+    tlCache.days.forEach(function (day) {
+      h += "<div class=\"day-block\"><h2>" + esc(dayTitle(day.day)) +
+        " <span class=\"mono\">(" + day.events.length + ")</span></h2><div class=\"tl\">";
+      var drewNow = false;
+      day.events.forEach(function (e) {
+        var t = new Date(e.ts).getTime();
+        if (!drewNow && t > now && day.day === new Date().toISOString().slice(0, 10)) {
+          h += "<div class=\"now-line\">now</div>";
+          drewNow = true;
+        }
+        h += "<div class=\"tl-row\">" +
+          "<div class=\"tl-time\">" + esc(fmtClock(e.ts)) + "</div>" +
+          "<div class=\"tl-body\">" +
+            "<div class=\"tl-name\">" + esc(e.name) + "</div>" +
+            "<div class=\"chip-row\">" +
+              "<span class=\"badge mode-" + esc(e.mode) + "\">" + esc(e.mode) + "</span>" +
+              "<span class=\"mono\">" + esc(e.job_id) + "</span>" +
+            "</div>" +
+            "<div class=\"tl-meta\">" + esc(e.schedule_label) +
+              (e.model ? " · " + esc(e.model) : "") +
+              (e.script ? " · " + esc(e.script) : "") +
+            "</div>" +
+          "</div></div>";
+      });
+      h += "</div></div>";
+    });
+    host.innerHTML = h;
+  }
+
+  function nodeById(id) {
+    if (!graphCache) return null;
+    for (var i = 0; i < graphCache.nodes.length; i++) {
+      if (graphCache.nodes[i].id === id) return graphCache.nodes[i];
+    }
+    return null;
+  }
+
+  function relatedEdges(id) {
+    return (graphCache.edges || []).filter(function (e) {
+      return e.from === id || e.to === id;
+    });
+  }
+
+  function renderDetail(id) {
+    var box = document.getElementById("mapDetail");
+    if (!id) {
+      box.innerHTML = "<p class=\"hint\">Select any job or bus on the map to see <strong>why</strong> it runs and how it feeds the next stage.</p>";
+      return;
+    }
+    var n = nodeById(id);
+    if (!n) return;
+    var outs = [];
+    var inns = [];
+    relatedEdges(id).forEach(function (e) {
+      if (e.from === id) outs.push(e);
+      else inns.push(e);
+    });
+    var h = "<h3>" + esc(n.label) + "</h3>";
+    h += "<div class=\"chip-row\">";
+    h += "<span class=\"badge mode-" + esc(n.mode) + "\">" + esc(n.mode) + "</span>";
+    if (n.kind === "job") h += "<span class=\"mono\">" + esc(n.id) + "</span>";
+    h += "</div>";
+    h += "<p class=\"why\">" + esc(n.why || n.description || "") + "</p>";
+    if (n.kind === "job") {
+      h += "<div class=\"mono\">" + esc(n.schedule_label || "") +
+        (n.model ? " · " + esc(n.model) : "") +
+        (n.script ? " · " + esc(n.script) : "") + "</div>";
+      if (n.next_run_at) h += "<div class=\"mono\" style=\"margin-top:4px\">Next: " + esc(fmtWhen(n.next_run_at)) + "</div>";
+    }
+    h += "<div class=\"rels\">";
+    h += "<h4>Feeds / writes</h4>";
+    if (!outs.length) h += "<p class=\"hint\">(no outbound edges)</p>";
+    else {
+      h += "<ul>";
+      outs.forEach(function (e) {
+        var t = nodeById(e.to);
+        h += "<li>→ <strong>" + esc(t ? t.label : e.to) + "</strong> — " + esc(e.label) + "</li>";
+      });
+      h += "</ul>";
+    }
+    h += "<h4>Depends on / reads</h4>";
+    if (!inns.length) h += "<p class=\"hint\">(no inbound edges)</p>";
+    else {
+      h += "<ul>";
+      inns.forEach(function (e) {
+        var f = nodeById(e.from);
+        h += "<li>← <strong>" + esc(f ? f.label : e.from) + "</strong> — " + esc(e.label) + "</li>";
+      });
+      h += "</ul>";
+    }
+    h += "</div>";
+    box.innerHTML = h;
+  }
+
+  function curve(x1, y1, x2, y2) {
+    var dx = Math.max(40, Math.abs(x2 - x1) * 0.35);
+    var c1x = x1 + (x2 >= x1 ? dx : -dx);
+    var c2x = x2 - (x2 >= x1 ? dx : -dx);
+    return "M " + x1 + " " + y1 + " C " + c1x + " " + y1 + ", " + c2x + " " + y2 + ", " + x2 + " " + y2;
+  }
+
+  function renderGraph() {
+    var host = document.getElementById("mapCanvas");
+    var story = document.getElementById("mapStory");
+    if (!graphCache) {
+      host.innerHTML = "<div class=\"empty\">No graph data</div>";
+      return;
+    }
+    story.innerHTML = (graphCache.story || []).map(function (s) {
+      return "<li>" + esc(s) + "</li>";
+    }).join("");
+
+    var w = graphCache.viewBox.w;
+    var h = graphCache.viewBox.h;
+    var byId = {};
+    graphCache.nodes.forEach(function (n) { byId[n.id] = n; });
+    var active = {};
+    if (selectedId) {
+      active[selectedId] = true;
+      relatedEdges(selectedId).forEach(function (e) {
+        active[e.from] = true;
+        active[e.to] = true;
+      });
+    }
+
+    var svg = [];
+    svg.push('<svg viewBox="0 0 ' + w + " " + h + '" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ops job system map">');
+    svg.push("<defs><marker id=\"arrow\" viewBox=\"0 0 10 10\" refX=\"9\" refY=\"5\" markerWidth=\"6\" markerHeight=\"6\" orient=\"auto-start-reverse\"><path d=\"M 0 0 L 10 5 L 0 10 z\" fill=\"rgba(0,210,211,.75)\"/></marker></defs>");
+
+    // lane headers
+    var laneX = { foundations: 40, sense: 250, plan: 470, build: 670, ship: 850, govern: 470 };
+    (graphCache.lanes || []).forEach(function (lane, i) {
+      var x = 40 + i * 175;
+      svg.push('<text class="lane-label" x="' + x + '" y="28">' + esc(lane.title.toUpperCase()) + "</text>");
+      svg.push('<text class="lane-sub" x="' + x + '" y="44">' + esc(lane.subtitle) + "</text>");
+    });
+
+    // edges under nodes
+    graphCache.edges.forEach(function (e, idx) {
+      var a = byId[e.from];
+      var b = byId[e.to];
+      if (!a || !b) return;
+      var on = !selectedId || (active[e.from] && active[e.to] && (e.from === selectedId || e.to === selectedId));
+      var cls = "edge" + (selectedId ? (on ? " on" : " dim") : "");
+      var x1 = a.x + 70;
+      var y1 = a.y + 22;
+      var x2 = b.x + 10;
+      var y2 = b.y + 22;
+      // buses are wider diamonds — adjust centers
+      if (a.kind === "bus") { x1 = a.x + 70; y1 = a.y + 18; }
+      if (b.kind === "bus") { x2 = b.x + 10; y2 = b.y + 18; }
+      svg.push('<path class="' + cls + '" data-ei="' + idx + '" d="' + curve(x1, y1, x2, y2) + '" />');
+      if (on || !selectedId) {
+        var mx = (x1 + x2) / 2;
+        var my = (y1 + y2) / 2 - 4;
+        var lab = e.label.length > 42 ? e.label.slice(0, 40) + "…" : e.label;
+        svg.push('<text class="edge-label' + (selectedId && on ? " on" : "") + '" x="' + mx + '" y="' + my + '" text-anchor="middle">' + esc(lab) + "</text>");
+      }
+    });
+
+    // nodes
+    graphCache.nodes.forEach(function (n) {
+      var on = !selectedId || active[n.id];
+      var cls = "node " + n.kind + " mode-" + n.mode + (selectedId ? (on ? " on" : " dim") : "");
+      var title = n.label.length > 22 ? n.label.slice(0, 20) + "…" : n.label;
+      svg.push('<g class="' + cls + '" data-id="' + esc(n.id) + '" transform="translate(' + n.x + "," + n.y + ')">');
+      if (n.kind === "bus") {
+        svg.push('<polygon points="70,0 140,18 70,36 0,18" />');
+        svg.push('<text class="node-title" x="70" y="16" text-anchor="middle">' + esc(title) + "</text>");
+        svg.push('<text class="node-sub" x="70" y="28" text-anchor="middle">state bus</text>');
+      } else {
+        svg.push('<rect width="150" height="44" rx="6" ry="6" />');
+        svg.push('<text class="node-title" x="10" y="18">' + esc(title) + "</text>");
+        svg.push('<text class="node-sub" x="10" y="34">' + esc(n.mode) + (n.schedule_label ? " · " + esc(n.schedule_label).slice(0, 18) : "") + "</text>");
+      }
+      svg.push("</g>");
+    });
+
+    svg.push("</svg>");
+    host.innerHTML = svg.join("");
+
+    host.querySelectorAll(".node").forEach(function (g) {
+      g.addEventListener("click", function () {
+        var id = g.getAttribute("data-id");
+        selectedId = selectedId === id ? null : id;
+        renderGraph();
+        renderDetail(selectedId);
+      });
+    });
+  }
+
+  async function loadJobs() {
+    setStatus("Loading jobs…");
+    var r = await fetch("/api/jobs", { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    jobsCache = await r.json();
+    setStatus("Loaded " + jobsCache.count + " jobs · " + fmtWhen(jobsCache.generated_at), "ok");
+    renderRegistry();
+  }
+
+  async function loadTimeline() {
+    setStatus("Loading timeline…");
+    var hours = document.getElementById("tHours").value;
+    var freq = document.getElementById("tFreq").value;
+    var r = await fetch("/api/jobs/timeline?hours=" + hours + "&frequent=" + freq, { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    tlCache = await r.json();
+    setStatus("Timeline ready · " + tlCache.event_count + " fires", "ok");
+    renderTimeline();
+  }
+
+  async function loadGraph() {
+    setStatus("Loading system map…");
+    var r = await fetch("/api/jobs/graph", { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    graphCache = await r.json();
+    setStatus("System map · " + graphCache.nodes.length + " nodes · " + graphCache.edges.length + " links", "ok");
+    renderGraph();
+    renderDetail(selectedId);
+  }
+
+  document.querySelectorAll(".tabs button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      switchTab(b.getAttribute("data-tab"));
+    });
+  });
+  ["rMode", "rEn"].forEach(function (id) {
+    document.getElementById(id).addEventListener("change", renderRegistry);
+  });
+  document.getElementById("rQ").addEventListener("input", renderRegistry);
+  document.getElementById("btnRefresh").addEventListener("click", function () {
+    loadJobs().catch(function (e) { setStatus(String(e.message || e), "err"); });
+  });
+  document.getElementById("btnTlRefresh").addEventListener("click", function () {
+    loadTimeline().catch(function (e) { setStatus(String(e.message || e), "err"); });
+  });
+  document.getElementById("tHours").addEventListener("change", function () {
+    loadTimeline().catch(function (e) { setStatus(String(e.message || e), "err"); });
+  });
+  document.getElementById("tFreq").addEventListener("change", function () {
+    loadTimeline().catch(function (e) { setStatus(String(e.message || e), "err"); });
+  });
+
+  var hash = (location.hash || "").replace("#", "");
+  var startTab = (hash === "timeline" || hash === "map") ? hash : "registry";
+  loadJobs()
+    .then(function () {
+      if (startTab !== "registry") switchTab(startTab);
+    })
+    .catch(function (e) {
+      setStatus("Failed to load jobs: " + (e.message || e), "err");
+    });
+})();
+</script>
+</body>
+</html>

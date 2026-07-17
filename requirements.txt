@@ -1,0 +1,2 @@
+# Optional — needed only if you use ops-config.yaml (JSON works without it)
+PyYAML>=6.0

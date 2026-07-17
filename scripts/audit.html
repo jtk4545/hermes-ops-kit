@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ops audit</title>
+<style>
+:root {
+  --bg: #0f0f1a;
+  --surface: #1a1a2e;
+  --text: #eee;
+  --muted: #9a9ab0;
+  --ok: #51cf66;
+  --warn: #ffd93d;
+  --err: #ff6b6b;
+  --accent: #00d2d3;
+  --border: rgba(255,255,255,.08);
+  --partial: #74c0fc;
+  --blocked: #ffa94d;
+  --silent: #868e96;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 20px;
+}
+.wrap { max-width: 1100px; margin: 0 auto; }
+header { margin-bottom: 16px; }
+header h1 { font-size: 1.5rem; margin-bottom: 4px; }
+header p { color: var(--muted); font-size: .88rem; }
+nav { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+nav a {
+  color: var(--accent);
+  text-decoration: none;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: .85rem;
+}
+nav a.active { border-color: var(--accent); }
+.toolbar {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  margin-bottom: 12px;
+}
+.toolbar input, .toolbar select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: .85rem;
+}
+.toolbar input { min-width: 220px; flex: 1; }
+.toolbar button {
+  background: rgba(0,210,211,.18);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 7px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.status { color: var(--muted); font-size: .85rem; margin-bottom: 10px; min-height: 1.2em; }
+.status.err { color: var(--err); }
+.list { display: flex; flex-direction: column; gap: 8px; }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.card-head {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline;
+  margin-bottom: 6px;
+}
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.st-ok { background: rgba(81,207,102,.15); color: var(--ok); }
+.st-error { background: rgba(255,107,107,.15); color: var(--err); }
+.st-partial { background: rgba(116,192,252,.15); color: var(--partial); }
+.st-blocked { background: rgba(255,169,77,.15); color: var(--blocked); }
+.st-silent { background: rgba(134,142,150,.15); color: var(--silent); }
+.st-skipped { background: rgba(134,142,150,.15); color: var(--silent); }
+.job { font-family: ui-monospace, Consolas, monospace; font-size: .8rem; color: var(--accent); }
+.ts { color: var(--muted); font-size: .78rem; margin-left: auto; }
+.summary { font-size: .95rem; margin-bottom: 4px; }
+.detail {
+  color: var(--muted);
+  font-size: .82rem;
+  white-space: pre-wrap;
+  margin-top: 6px;
+}
+.arts { margin-top: 8px; font-size: .8rem; }
+.arts a { color: var(--accent); word-break: break-all; }
+.empty { text-align: center; color: var(--muted); padding: 40px 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Ops audit trail</h1>
+    <p>What Hermes cron jobs did — from <code>brain/AUDIT.jsonl</code></p>
+  </header>
+  <nav>
+    <a href="/">Roadmap</a>
+    <a href="/jobs">Jobs</a>
+    <a href="/audit" class="active">Audit</a>
+  </nav>
+  <div class="toolbar">
+    <input id="q" type="search" placeholder="Filter summary / job / detail…">
+    <select id="status">
+      <option value="">All statuses</option>
+      <option value="ok">ok</option>
+      <option value="error">error</option>
+      <option value="partial">partial</option>
+      <option value="blocked">blocked</option>
+      <option value="silent">silent</option>
+      <option value="skipped">skipped</option>
+    </select>
+    <select id="day">
+      <option value="">All days</option>
+    </select>
+    <button type="button" id="refresh">Refresh</button>
+  </div>
+  <div id="statusline" class="status">Loading…</div>
+  <div id="list" class="list"></div>
+</div>
+<script>
+(function () {
+  var events = [];
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  function linkify(a) {
+    var s = String(a || "");
+    if (/^https?:\/\//i.test(s)) {
+      return "<a href=\"" + esc(s) + "\" target=\"_blank\" rel=\"noopener\">" + esc(s) + "</a>";
+    }
+    return "<code>" + esc(s) + "</code>";
+  }
+
+  function render() {
+    var q = (document.getElementById("q").value || "").toLowerCase();
+    var st = document.getElementById("status").value;
+    var day = document.getElementById("day").value;
+    var filtered = events.filter(function (e) {
+      if (st && e.status !== st) return false;
+      if (day && e.day !== day) return false;
+      if (!q) return true;
+      var blob = [e.job_id, e.name, e.summary, e.detail, (e.artifacts || []).join(" ")].join(" ").toLowerCase();
+      return blob.indexOf(q) !== -1;
+    });
+
+    var host = document.getElementById("list");
+    if (!filtered.length) {
+      host.innerHTML = "<div class=\"empty\">No audit events match.</div>";
+      document.getElementById("statusline").textContent = "0 of " + events.length + " events";
+      return;
+    }
+
+    host.innerHTML = filtered.map(function (e) {
+      var cls = "st-" + (e.status || "ok");
+      var detail = e.detail ? "<div class=\"detail\">" + esc(e.detail) + "</div>" : "";
+      var arts = "";
+      if (e.artifacts && e.artifacts.length) {
+        arts = "<div class=\"arts\">" + e.artifacts.map(function (a) {
+          return "<div>" + linkify(a) + "</div>";
+        }).join("") + "</div>";
+      }
+      return "<article class=\"card\">" +
+        "<div class=\"card-head\">" +
+          "<span class=\"badge " + cls + "\">" + esc(e.status || "?") + "</span>" +
+          "<span class=\"job\">" + esc(e.job_id) + "</span>" +
+          "<span>" + esc(e.name || "") + "</span>" +
+          "<span class=\"ts\">" + esc(e.ts || "") + "</span>" +
+        "</div>" +
+        "<div class=\"summary\">" + esc(e.summary || "") + "</div>" +
+        detail + arts +
+      "</article>";
+    }).join("");
+
+    document.getElementById("statusline").textContent =
+      "Showing " + filtered.length + " of " + events.length + " events (newest first)";
+  }
+
+  async function load() {
+    document.getElementById("statusline").textContent = "Loading…";
+    try {
+      var r = await fetch("/api/audit?limit=500", { cache: "no-store" });
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      var data = await r.json();
+      events = (data.events || []).slice().reverse();
+      var days = {};
+      events.forEach(function (e) { if (e.day) days[e.day] = true; });
+      var daySel = document.getElementById("day");
+      var cur = daySel.value;
+      daySel.innerHTML = "<option value=\"\">All days</option>" +
+        Object.keys(days).sort().reverse().map(function (d) {
+          return "<option value=\"" + esc(d) + "\">" + esc(d) + "</option>";
+        }).join("");
+      daySel.value = cur;
+      render();
+    } catch (e) {
+      document.getElementById("statusline").className = "status err";
+      document.getElementById("statusline").textContent = "Failed to load audit: " + e.message;
+      document.getElementById("list").innerHTML = "";
+    }
+  }
+
+  document.getElementById("q").addEventListener("input", render);
+  document.getElementById("status").addEventListener("change", render);
+  document.getElementById("day").addEventListener("change", render);
+  document.getElementById("refresh").addEventListener("click", load);
+  load();
+  setInterval(load, 60000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+ops-config.yaml
+ops-config.yml
+ops-config.json
+config.yaml
+__pycache__/
+**/__pycache__/
+*.pyc
+.Python
+.venv/
+venv/
+*.tmp
+.DS_Store
+_build_kit.py
+_gen_templates.py
+_weekend_policy.py.txt
+templates/cron/jobs.rendered*.json

@@ -1,0 +1,30 @@
+{
+  "timezone": "America/Chicago",
+  "ui_port": 8888,
+  "projects_root": "/path/to/your/projects",
+  "github": {
+    "org": "your-org",
+    "repos": [
+      {
+        "name": "example-app",
+        "slug": "your-org/example-app",
+        "critical_workflows": ["CI"]
+      }
+    ]
+  },
+  "products": ["example-app"],
+  "projects": {
+    "example-app": {
+      "path": "example-app",
+      "checks": [["Compile check", ["echo", "configure me"]]]
+    }
+  },
+  "tracked_branches": ["main", "trunk", "dev", "qa"],
+  "models": {
+    "pm": {"provider": "bonsai-local", "model": "bonsai-27b"},
+    "market": {"provider": "bonsai-local", "model": "bonsai-27b"},
+    "ops_review": {"provider": "bonsai-local", "model": "bonsai-27b"},
+    "autofix": {"provider": "copilot", "model": "gpt-5.4"},
+    "executor": {"provider": "openai-codex", "model": "gpt-5.6-sol"}
+  }
+}

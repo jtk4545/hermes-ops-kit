@@ -1,0 +1,52 @@
+# Copy to ops-config.yaml and install into $HERMES_HOME or ~/.hermes/
+#   cp config.example.yaml ops-config.yaml
+#   python install/install.py --config ops-config.yaml
+
+timezone: America/Chicago
+ui_port: 8888
+
+# Root folder that contains your local product checkouts
+projects_root: /path/to/your/projects
+
+github:
+  org: your-org
+  repos:
+    - name: example-app
+      slug: your-org/example-app
+      critical_workflows:
+        - CI
+
+# Roadmap / UI product keys (usually match repo names)
+products:
+  - example-app
+
+# Local health checks for project-sentinel.py
+# Each check is [label, [argv...]]
+projects:
+  example-app:
+    path: example-app
+    checks:
+      - [Compile check, ["echo", "configure me"]]
+
+tracked_branches:
+  - main
+  - trunk
+  - dev
+  - qa
+
+models:
+  pm:
+    provider: bonsai-local
+    model: bonsai-27b
+  market:
+    provider: bonsai-local
+    model: bonsai-27b
+  ops_review:
+    provider: bonsai-local
+    model: bonsai-27b
+  autofix:
+    provider: copilot
+    model: gpt-5.4
+  executor:
+    provider: openai-codex
+    model: gpt-5.6-sol

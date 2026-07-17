@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roadmap</title>
+<style>
+:root {
+  --bg: #0f0f1a;
+  --surface: #1a1a2e;
+  --text: #eee;
+  --muted: #9a9ab0;
+  --ok: #51cf66;
+  --warn: #ffd93d;
+  --accent: #4ecdc4;
+  --accent2: #00d2d3;
+  --danger: #ff6b6b;
+  --human: #ffa94d;
+  --border: rgba(255,255,255,.08);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 20px;
+}
+.wrap { max-width: 1280px; margin: 0 auto; }
+header { text-align: center; margin-bottom: 12px; }
+header h1 { font-size: 1.6rem; margin-bottom: 4px; }
+header p { color: var(--muted); font-size: .9rem; }
+nav.top {
+  display: flex; justify-content: center; gap: 8px; margin-bottom: 14px;
+}
+nav.top a {
+  color: var(--accent2); text-decoration: none;
+  padding: 6px 12px; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--surface); font-size: .85rem;
+}
+nav.top a.active { border-color: var(--accent2); }
+
+.toolbar {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  align-items: flex-end; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.ctrl-row {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; flex: 1;
+}
+.ctrl { display: flex; flex-direction: column; gap: 3px; min-width: 120px; }
+.ctrl label { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; }
+.ctrl select, .ctrl input, .btn {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: .85rem;
+}
+.ctrl input { min-width: 180px; }
+.proj-filters { display: flex; flex-wrap: wrap; gap: 6px; width: 100%; margin-bottom: 4px; }
+.proj-filters button, .btn {
+  cursor: pointer;
+}
+.proj-filters button.active, .btn-primary {
+  background: rgba(0,210,211,.18);
+  border-color: var(--accent2);
+  color: var(--accent2);
+}
+.btn-primary { font-weight: 600; }
+.btn-danger { color: var(--danger); border-color: rgba(255,107,107,.35); }
+.btn-ok { color: var(--ok); border-color: rgba(81,207,102,.4); font-weight: 600; }
+.btn:hover, .proj-filters button:hover { filter: brightness(1.1); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+.status {
+  min-height: 1.2em; color: var(--muted); font-size: .85rem; margin-bottom: 10px;
+}
+.status.err { color: var(--danger); }
+.status.ok { color: var(--ok); }
+
+.human-queue { margin-bottom: 18px; }
+.human-queue > h2 {
+  font-size: 1.05rem; margin-bottom: 8px;
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+}
+.human-queue > h2 .count {
+  font-size: .8rem; color: var(--human); font-weight: 600;
+}
+.hq-empty {
+  color: var(--muted); font-size: .88rem;
+  padding: 12px; border: 1px dashed var(--border); border-radius: 8px;
+}
+.hq-list { display: flex; flex-direction: column; gap: 10px; }
+.hq-card {
+  background: var(--surface);
+  border: 1px solid rgba(255,169,77,.45);
+  border-left: 4px solid var(--human);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.hq-head {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline;
+  margin-bottom: 8px;
+}
+.hq-title { font-size: 1rem; font-weight: 650; }
+.hq-meta { color: var(--muted); font-size: .8rem; }
+.kind {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: .72rem; font-weight: 700; letter-spacing: .03em;
+}
+.kind-action { background: rgba(255,107,107,.18); color: var(--danger); }
+.kind-approval { background: rgba(255,169,77,.2); color: var(--human); }
+.kind-human { background: rgba(116,192,252,.15); color: #74c0fc; }
+.why {
+  margin: 6px 0 10px;
+  font-size: .92rem; line-height: 1.35;
+}
+.why strong { color: var(--human); font-weight: 650; }
+.steps {
+  margin: 0 0 10px 1.1rem;
+  font-size: .9rem; line-height: 1.45;
+}
+.steps li { margin-bottom: 4px; }
+.steps li:last-child { margin-bottom: 0; }
+.missing {
+  color: var(--danger); font-size: .85rem; margin-bottom: 8px;
+}
+.hq-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.after {
+  color: var(--muted); font-size: .78rem; margin-top: 8px;
+}
+
+.section-label {
+  font-size: .8rem; color: var(--muted); text-transform: uppercase;
+  letter-spacing: .04em; margin: 4px 0 8px;
+}
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+th {
+  text-align: left; color: var(--muted); font-size: .7rem;
+  text-transform: uppercase; letter-spacing: .04em;
+  padding: 10px; border-bottom: 1px solid var(--border);
+  white-space: nowrap; cursor: pointer; user-select: none;
+}
+th:hover { color: var(--accent2); }
+th .sort { opacity: .45; margin-left: 4px; }
+th.sorted .sort { opacity: 1; color: var(--accent2); }
+td {
+  padding: 9px 10px;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  vertical-align: top;
+}
+tr:hover td { background: rgba(255,255,255,.03); }
+tr.needs-you td { background: rgba(255,169,77,.06); }
+.badge {
+  display: inline-block; padding: 2px 8px; border-radius: 4px;
+  font-size: .72rem; font-weight: 600;
+}
+.pip { background: rgba(81,207,102,.15); color: var(--ok); }
+.pup { background: rgba(255,217,61,.15); color: var(--warn); }
+.pbl { background: rgba(78,205,196,.15); color: var(--accent2); }
+.pdn { background: rgba(100,100,100,.2); color: #888; }
+.prio { font-weight: 700; font-size: .78rem; }
+.p1 { color: var(--danger); }
+.p2 { color: var(--warn); }
+.p3 { color: var(--ok); }
+.tag {
+  display: inline-block; padding: 1px 6px; border-radius: 4px;
+  background: rgba(78,205,196,.12); color: var(--accent2);
+  font-size: .7rem; margin: 0 2px 2px 0;
+}
+.row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.row-actions button { padding: 4px 8px; font-size: .75rem; }
+.empty {
+  text-align: center; color: var(--muted); padding: 28px 12px;
+}
+.mod {
+  position: fixed; inset: 0; background: rgba(0,0,0,.65);
+  z-index: 100; display: none; align-items: center; justify-content: center;
+  padding: 16px;
+}
+.mod.on { display: flex; }
+.md {
+  background: var(--surface); border-radius: 10px; padding: 20px;
+  max-width: 520px; width: 100%; border: 1px solid var(--border);
+  max-height: 90vh; overflow-y: auto;
+}
+.md h2 { margin-bottom: 14px; font-size: 1.15rem; }
+.fg { margin-bottom: 10px; }
+.fg label { display: block; margin-bottom: 3px; color: var(--muted); font-size: .8rem; }
+.fg input, .fg select, .fg textarea {
+  width: 100%; padding: 7px 10px; background: var(--bg);
+  border: 1px solid var(--border); border-radius: 5px;
+  color: var(--text); font-size: .88rem;
+}
+.fg textarea { min-height: 56px; resize: vertical; }
+.fa { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
+@media (max-width: 720px) {
+  .ctrl input { min-width: 100%; }
+  .ctrl { min-width: calc(50% - 8px); }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Roadmap</h1>
+    <p>Canonical SoT: <code>~/.hermes/roadmaps.json</code> · Hermes CRUD via <code>roadmap_cli.py</code></p>
+  </header>
+  <nav class="top">
+    <a href="/" class="active">Roadmap</a>
+    <a href="/jobs">Jobs</a>
+    <a href="/audit">Audit</a>
+  </nav>
+
+  <div class="toolbar">
+    <div class="ctrl-row">
+      <div class="proj-filters" id="projFilters"></div>
+      <div class="ctrl">
+        <label for="fView">Show</label>
+        <select id="fView">
+          <option value="needs_you">Needs you (blocked / human)</option>
+          <option value="blocked">Blocked only</option>
+          <option value="human">Owner = human</option>
+          <option value="agent">Owner = agent</option>
+          <option value="all" selected>All items</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <label for="fPhase">Phase</label>
+        <select id="fPhase">
+          <option value="all">All phases</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Upcoming">Upcoming</option>
+          <option value="Backlog">Backlog</option>
+          <option value="Done">Done</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <label for="fSort">Sort</label>
+        <select id="fSort">
+          <option value="needs_first">Needs you first</option>
+          <option value="priority">Priority (high → low)</option>
+          <option value="due">Due date</option>
+          <option value="project">Project + name</option>
+          <option value="phase">Phase</option>
+          <option value="name">Name</option>
+        </select>
+      </div>
+      <div class="ctrl">
+        <label for="fQ">Search</label>
+        <input id="fQ" type="search" placeholder="name, reason, tags…">
+      </div>
+    </div>
+    <button type="button" class="btn btn-primary" id="btnAdd">Add item</button>
+  </div>
+
+  <div id="status" class="status">Loading…</div>
+
+  <section class="human-queue" id="humanQueue" aria-label="Items that need you"></section>
+
+  <div class="section-label" id="tableLabel">All matching items</div>
+  <div id="mc"></div>
+</div>
+
+<div id="am" class="mod" aria-hidden="true">
+  <div class="md">
+    <h2>Add item</h2>
+    <div class="fg"><label for="ap">Project</label><select id="ap"></select></div>
+    <div class="fg"><label for="an">Item</label><input id="an" placeholder="Name"></div>
+    <div class="fg"><label for="aap">Priority</label>
+      <select id="aap"><option value="1">1 — high</option><option value="2">2 — medium</option><option value="3" selected>3 — low</option></select>
+    </div>
+    <div class="fg"><label for="app">Phase</label>
+      <select id="app"><option>In Progress</option><option>Upcoming</option><option selected>Backlog</option><option>Done</option></select>
+    </div>
+    <div class="fg"><label for="ad">Due</label><input id="ad" type="date"></div>
+    <div class="fg"><label for="ao">Owner</label>
+      <select id="ao"><option value="agent">agent</option><option value="human">human</option></select>
+    </div>
+    <div class="fg"><label for="at">Tags</label><input id="at" placeholder="comma-separated"></div>
+    <div class="fg"><label for="aha">Human actions (one per line — exact steps)</label><textarea id="aha" placeholder="1. Do this&#10;2. Then that&#10;3. Reply done"></textarea></div>
+    <div class="fg"><label for="anot">Notes</label><textarea id="anot"></textarea></div>
+    <div class="fa">
+      <button type="button" class="btn" id="btnAddCancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="btnAddSave">Add</button>
+    </div>
+  </div>
+</div>
+
+<div id="em" class="mod" aria-hidden="true">
+  <div class="md">
+    <h2>Edit item</h2>
+    <input type="hidden" id="eorig">
+    <div class="fg"><label for="ep">Project</label><input id="ep" disabled></div>
+    <div class="fg"><label for="en">Item</label><input id="en"></div>
+    <div class="fg"><label for="eap">Priority</label>
+      <select id="eap"><option value="1">1 — high</option><option value="2">2 — medium</option><option value="3">3 — low</option></select>
+    </div>
+    <div class="fg"><label for="eap2">Phase</label>
+      <select id="eap2"><option>In Progress</option><option>Upcoming</option><option>Backlog</option><option>Done</option></select>
+    </div>
+    <div class="fg"><label for="ed">Due</label><input id="ed" type="date"></div>
+    <div class="fg"><label for="eo">Owner</label>
+      <select id="eo"><option value="agent">agent</option><option value="human">human</option></select>
+    </div>
+    <div class="fg"><label for="eb">Blocked</label>
+      <select id="eb"><option value="false">no</option><option value="true">yes</option></select>
+    </div>
+    <div class="fg"><label for="ebr">Blocked reason</label><input id="ebr" placeholder="ACTION: … or APPROVAL: …"></div>
+    <div class="fg"><label for="et">Tags</label><input id="et"></div>
+    <div class="fg"><label for="eha">Human actions (one per line — exact steps)</label><textarea id="eha"></textarea></div>
+    <div class="fg"><label for="enot">Notes</label><textarea id="enot"></textarea></div>
+    <div class="fa">
+      <button type="button" class="btn" id="btnEditCancel">Cancel</button>
+      <button type="button" class="btn btn-primary" id="btnEditSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var PHASES = ["In Progress", "Upcoming", "Backlog", "Done"];
+  var PHASE_ORDER = { "In Progress": 0, "Upcoming": 1, "Backlog": 2, "Done": 3 };
+  // Fallback only — live list comes from /api/roadmap keys after load
+  var PROJECTS = ["example-app"];
+  var PHASE_CLASS = {
+    "In Progress": "pip",
+    "Upcoming": "pup",
+    "Backlog": "pbl",
+    "Done": "pdn"
+  };
+
+  var S = {};
+  var filterProject = "all";
+  var filterView = "all";
+  var filterPhase = "all";
+  var filterSort = "needs_first";
+  var filterQ = "";
+  var sortCol = null;
+  var sortDir = 1;
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function setStatus(msg, kind) {
+    var el = document.getElementById("status");
+    el.textContent = msg || "";
+    el.className = "status" + (kind ? " " + kind : "");
+  }
+
+  function emptyProject() {
+    var o = {};
+    PHASES.forEach(function (p) { o[p] = []; });
+    return o;
+  }
+
+  function ensureShape(data) {
+    var out = data && typeof data === "object" ? data : {};
+    var keys = Object.keys(out);
+    if (keys.length) {
+      PROJECTS = keys.slice().sort();
+    }
+    PROJECTS.forEach(function (p) {
+      if (!out[p]) out[p] = emptyProject();
+      PHASES.forEach(function (ph) {
+        if (!Array.isArray(out[p][ph])) out[p][ph] = [];
+      });
+    });
+    return out;
+  }
+
+  function fillProjectSelect(sel) {
+    sel.innerHTML = PROJECTS.map(function (p) {
+      return "<option value=\"" + esc(p) + "\">" + esc(p) + "</option>";
+    }).join("");
+  }
+
+  function openModal(id) {
+    var m = document.getElementById(id);
+    m.classList.add("on");
+    m.setAttribute("aria-hidden", "false");
+  }
+
+  function closeModal(id) {
+    var m = document.getElementById(id);
+    m.classList.remove("on");
+    m.setAttribute("aria-hidden", "true");
+  }
+
+  function countItems(proj) {
+    return PHASES.reduce(function (n, ph) { return n + (S[proj][ph] || []).length; }, 0);
+  }
+
+  function needsYou(item) {
+    if (item.blocked) return true;
+    if ((item.owner || "agent") === "human") return true;
+    return false;
+  }
+
+  function kindOf(item) {
+    var reason = (item.blocked_reason || "").trim();
+    var upper = reason.toUpperCase();
+    if (upper.indexOf("APPROVAL:") === 0) return "APPROVAL";
+    if (upper.indexOf("ACTION:") === 0) return "ACTION";
+    if (item.blocked) return "ACTION";
+    return "HUMAN";
+  }
+
+  function whyText(item) {
+    var r = (item.blocked_reason || "").trim();
+    if (r) return r;
+    if ((item.owner || "") === "human") return "HUMAN: waiting on you (no blocked_reason set)";
+    return "Needs attention";
+  }
+
+  function whyShort(item) {
+    return whyText(item)
+      .replace(/^(ACTION|APPROVAL|HUMAN):\s*/i, "")
+      .trim();
+  }
+
+  function actionsList(item) {
+    var acts = item.human_actions || [];
+    if (acts.length) return acts;
+    var kind = kindOf(item);
+    if (kind === "APPROVAL") {
+      return ["Review the linked PR / context in notes", "Reply yes to approve, or no / hold"];
+    }
+    return [];
+  }
+
+  function allRows() {
+    var rows = [];
+    PROJECTS.forEach(function (proj) {
+      PHASES.forEach(function (ph) {
+        (S[proj][ph] || []).forEach(function (item) {
+          rows.push({ proj: proj, ph: ph, item: item });
+        });
+      });
+    });
+    return rows;
+  }
+
+  function matchesFilters(row) {
+    if (filterProject !== "all" && filterProject !== row.proj) return false;
+    if (filterPhase !== "all" && filterPhase !== row.ph) return false;
+    var item = row.item;
+    if (filterView === "needs_you" && !needsYou(item)) return false;
+    if (filterView === "blocked" && !item.blocked) return false;
+    if (filterView === "human" && (item.owner || "agent") !== "human") return false;
+    if (filterView === "agent" && (item.owner || "agent") !== "agent") return false;
+    if (filterQ) {
+      var q = filterQ.toLowerCase();
+      var blob = [
+        row.proj, item.name, item.notes, item.blocked_reason,
+        item.owner, (item.tags || []).join(" "),
+        (item.human_actions || []).join(" ")
+      ].join(" ").toLowerCase();
+      if (blob.indexOf(q) === -1) return false;
+    }
+    return true;
+  }
+
+  function sortRows(rows) {
+    var key = sortCol || filterSort;
+    rows.sort(function (a, b) {
+      var cmp = 0;
+      if (key === "needs_first") {
+        var na = needsYou(a.item) ? 0 : 1;
+        var nb = needsYou(b.item) ? 0 : 1;
+        cmp = na - nb;
+        if (!cmp) cmp = (+a.item.priority || 3) - (+b.item.priority || 3);
+        if (!cmp) cmp = String(a.item.date || "9999").localeCompare(String(b.item.date || "9999"));
+      } else if (key === "priority" || key === "prio") {
+        cmp = (+a.item.priority || 3) - (+b.item.priority || 3);
+      } else if (key === "due" || key === "date") {
+        cmp = String(a.item.date || "9999").localeCompare(String(b.item.date || "9999"));
+      } else if (key === "project") {
+        cmp = a.proj.localeCompare(b.proj) || a.item.name.localeCompare(b.item.name);
+      } else if (key === "phase" || key === "ph") {
+        cmp = (PHASE_ORDER[a.ph] || 9) - (PHASE_ORDER[b.ph] || 9);
+      } else if (key === "name") {
+        cmp = a.item.name.localeCompare(b.item.name);
+      } else if (key === "owner") {
+        cmp = String(a.item.owner || "").localeCompare(String(b.item.owner || ""));
+      } else {
+        cmp = a.item.name.localeCompare(b.item.name);
+      }
+      return cmp * (sortCol ? sortDir : 1);
+    });
+    return rows;
+  }
+
+  function renderProjFilters() {
+    var host = document.getElementById("projFilters");
+    var html = "<button type=\"button\" data-p=\"all\" class=\"" +
+      (filterProject === "all" ? "active" : "") + "\">All projects</button>";
+    PROJECTS.forEach(function (p) {
+      var n = countItems(p);
+      var need = allRows().filter(function (r) {
+        return r.proj === p && needsYou(r.item);
+      }).length;
+      html += "<button type=\"button\" data-p=\"" + esc(p) + "\" class=\"" +
+        (filterProject === p ? "active" : "") + "\">" + esc(p) +
+        (n ? " (" + n + ")" : "") +
+        (need ? " · " + need + " you" : "") + "</button>";
+    });
+    host.innerHTML = html;
+  }
+
+  function renderHumanQueue() {
+    var host = document.getElementById("humanQueue");
+    var rows = sortRows(allRows().filter(function (r) {
+      if (!needsYou(r.item)) return false;
+      if (filterProject !== "all" && r.proj !== filterProject) return false;
+      if (r.ph === "Done") return false;
+      return true;
+    }));
+
+    if (!rows.length) {
+      host.innerHTML = "<h2>Needs you <span class=\"count\">0</span></h2>" +
+        "<div class=\"hq-empty\">Nothing waiting on you. Agent-owned work continues on the executor schedule.</div>";
+      return;
+    }
+
+    var h = "<h2>Needs you <span class=\"count\">" + rows.length +
+      " item" + (rows.length === 1 ? "" : "s") + "</span></h2><div class=\"hq-list\">";
+
+    rows.forEach(function (row) {
+      var item = row.item;
+      var kind = kindOf(item);
+      var kindCls = kind === "APPROVAL" ? "kind-approval" :
+        (kind === "ACTION" ? "kind-action" : "kind-human");
+      var acts = actionsList(item);
+      var key = row.proj + "::" + item.name;
+
+      h += "<article class=\"hq-card\" data-key=\"" + esc(key) + "\">";
+      h += "<div class=\"hq-head\">";
+      h += "<span class=\"kind " + kindCls + "\">" + esc(kind) + "</span>";
+      h += "<span class=\"hq-title\">" + esc(row.proj) + " / " + esc(item.name) + "</span>";
+      h += "<span class=\"hq-meta\">" + esc(row.ph) + " · P" + esc(item.priority || 3) +
+        (item.date ? " · due " + esc(item.date) : "") + "</span>";
+      h += "</div>";
+      h += "<p class=\"why\"><strong>What we need:</strong> " + esc(whyShort(item)) + "</p>";
+
+      if (acts.length) {
+        h += "<ol class=\"steps\">";
+        acts.forEach(function (a) {
+          h += "<li>" + esc(a) + "</li>";
+        });
+        h += "</ol>";
+      } else {
+        h += "<p class=\"missing\">No steps listed — edit this item and add exact human actions (one per line).</p>";
+      }
+
+      if (item.notes) {
+        h += "<p class=\"hq-meta\">Context: " + esc(item.notes) + "</p>";
+      }
+
+      h += "<div class=\"hq-actions\">";
+      h += "<button type=\"button\" class=\"btn btn-ok\" data-resolve=\"" + esc(key) +
+        "\">I did this — release to agent</button>";
+      if (kind === "APPROVAL") {
+        h += "<button type=\"button\" class=\"btn btn-ok\" data-approve=\"" + esc(key) +
+          "\">Approved — release to agent</button>";
+      }
+      h += "<button type=\"button\" class=\"btn\" data-edit=\"" + esc(key) + "\">Edit</button>";
+      h += "</div>";
+      h += "<p class=\"after\">After release: next executor run (weekdays 10:00 / 14:00) can finish the item. " +
+        "For held PRs, also comment <code>yes</code> or add label <code>hermes-approved</code> on the PR.</p>";
+      h += "</article>";
+    });
+
+    h += "</div>";
+    host.innerHTML = h;
+  }
+
+  function renderTable() {
+    var host = document.getElementById("mc");
+    var rows = sortRows(allRows().filter(matchesFilters));
+    var label = document.getElementById("tableLabel");
+    label.textContent = rows.length + " matching item" + (rows.length === 1 ? "" : "s");
+
+    if (!rows.length) {
+      host.innerHTML = "<div class=\"empty\">No items match these filters. " +
+        "Try <strong>All items</strong> or clear search.</div>";
+      return;
+    }
+
+    function th(col, label) {
+      var sorted = sortCol === col;
+      var arrow = sorted ? (sortDir > 0 ? "▲" : "▼") : "↕";
+      return "<th data-sort=\"" + col + "\" class=\"" + (sorted ? "sorted" : "") +
+        "\">" + label + "<span class=\"sort\">" + arrow + "</span></th>";
+    }
+
+    var h = "<div class=\"table-wrap\"><table><thead><tr>" +
+      th("project", "Project") +
+      th("name", "Item") +
+      th("owner", "Owner") +
+      th("prio", "Prio") +
+      th("date", "Due") +
+      th("phase", "Phase") +
+      "<th>Need</th><th>Tags</th><th>Actions</th>" +
+      "</tr></thead><tbody>";
+
+    rows.forEach(function (row) {
+      var item = row.item;
+      var own = item.owner || "agent";
+      var ny = needsYou(item);
+      var tags = (item.tags || []).map(function (t) {
+        return "<span class=\"tag\">" + esc(t) + "</span>";
+      }).join("");
+      var cls = PHASE_CLASS[row.ph] || "pbl";
+      var pr = +item.priority || 3;
+      var needCell = ny
+        ? "<span class=\"kind " +
+          (kindOf(item) === "APPROVAL" ? "kind-approval" : "kind-action") +
+          "\">" + esc(kindOf(item)) + "</span> " + esc(whyShort(item).slice(0, 80))
+        : "<span class=\"hq-meta\">—</span>";
+      var key = row.proj + "::" + item.name;
+
+      h += "<tr class=\"" + (ny ? "needs-you" : "") + "\">" +
+        "<td>" + esc(row.proj) + "</td>" +
+        "<td>" + esc(item.name) + "</td>" +
+        "<td>" + esc(own) + (item.blocked ? " · blocked" : "") + "</td>" +
+        "<td><span class=\"prio p" + pr + "\">P" + pr + "</span></td>" +
+        "<td>" + esc(item.date || "") + "</td>" +
+        "<td><span class=\"badge " + cls + "\">" + esc(row.ph) + "</span></td>" +
+        "<td>" + needCell + "</td>" +
+        "<td>" + tags + "</td>" +
+        "<td class=\"row-actions\">" +
+          (ny ? "<button type=\"button\" class=\"btn btn-ok\" data-resolve=\"" + esc(key) +
+            "\">Release</button>" : "") +
+          "<button type=\"button\" class=\"btn\" data-edit=\"" + esc(key) + "\">Edit</button>" +
+          "<button type=\"button\" class=\"btn btn-danger\" data-del=\"" + esc(key) + "\">Del</button>" +
+        "</td></tr>";
+    });
+
+    h += "</tbody></table></div>";
+    host.innerHTML = h;
+  }
+
+  function ra() {
+    renderProjFilters();
+    renderHumanQueue();
+    renderTable();
+  }
+
+  async function loadJSON() {
+    setStatus("Loading roadmaps.json…");
+    var r = await fetch("/roadmaps.json", { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status + " loading /roadmaps.json");
+    var j = await r.json();
+    S = ensureShape(j);
+    var total = PROJECTS.reduce(function (n, p) { return n + countItems(p); }, 0);
+    var need = allRows().filter(function (r) { return needsYou(r.item) && r.ph !== "Done"; }).length;
+    setStatus("Loaded " + total + " items (" + need + " need you).", "ok");
+  }
+
+  async function saveToAll() {
+    S = ensureShape(S);
+    var r = await fetch("/roadmaps.json", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(S)
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status + " saving");
+    setStatus("Saved to ~/.hermes/roadmaps.json", "ok");
+  }
+
+  function findItem(proj, name) {
+    var phFound = null;
+    var item = null;
+    PHASES.forEach(function (ph) {
+      (S[proj][ph] || []).forEach(function (it) {
+        if (it.name === name) {
+          item = it;
+          phFound = ph;
+        }
+      });
+    });
+    return { item: item, phase: phFound };
+  }
+
+  function removeItem(proj, name) {
+    PHASES.forEach(function (ph) {
+      S[proj][ph] = (S[proj][ph] || []).filter(function (it) { return it.name !== name; });
+    });
+  }
+
+  function parseKey(key) {
+    var parts = String(key).split("::");
+    return { proj: parts[0], name: parts.slice(1).join("::") };
+  }
+
+  function openEdit(proj, name) {
+    var found = findItem(proj, name);
+    if (!found.item) return;
+    document.getElementById("ep").value = proj;
+    document.getElementById("eorig").value = name;
+    document.getElementById("en").value = found.item.name;
+    document.getElementById("eap").value = String(found.item.priority || 3);
+    document.getElementById("eap2").value = found.phase;
+    document.getElementById("ed").value = found.item.date || "";
+    document.getElementById("eo").value = found.item.owner || "agent";
+    document.getElementById("eb").value = found.item.blocked ? "true" : "false";
+    document.getElementById("ebr").value = found.item.blocked_reason || "";
+    document.getElementById("et").value = (found.item.tags || []).join(", ");
+    document.getElementById("eha").value = (found.item.human_actions || []).join("\n");
+    document.getElementById("enot").value = found.item.notes || "";
+    openModal("em");
+  }
+
+  async function releaseToAgent(proj, name, approved) {
+    var found = findItem(proj, name);
+    if (!found.item) return;
+    var prev = found.item.blocked_reason || "";
+    found.item.blocked = false;
+    found.item.blocked_reason = "";
+    found.item.owner = "agent";
+    var note = approved ? "Human approved via UI; released to agent." : "Human completed ACTION via UI; released to agent.";
+    if (prev) note += " Was: " + prev;
+    var existing = (found.item.notes || "").trim();
+    found.item.notes = existing ? (existing + "\n" + note) : note;
+    if (found.phase === "Backlog" || found.phase === "Upcoming") {
+      // keep phase; executor can promote — but In Progress is clearer for resume
+      if (found.phase !== "In Progress") {
+        removeItem(proj, name);
+        S[proj]["In Progress"].push(found.item);
+      }
+    }
+    try {
+      await saveToAll();
+      ra();
+      setStatus("Released \"" + name + "\" to agent (blocked cleared, owner=agent).", "ok");
+    } catch (e) {
+      setStatus(String(e.message || e), "err");
+      alert("Save failed: " + e.message);
+    }
+  }
+
+  document.getElementById("btnAdd").addEventListener("click", function () {
+    fillProjectSelect(document.getElementById("ap"));
+    if (filterProject !== "all") document.getElementById("ap").value = filterProject;
+    document.getElementById("an").value = "";
+    document.getElementById("at").value = "";
+    document.getElementById("aha").value = "";
+    document.getElementById("anot").value = "";
+    openModal("am");
+  });
+  document.getElementById("btnAddCancel").addEventListener("click", function () { closeModal("am"); });
+  document.getElementById("btnEditCancel").addEventListener("click", function () { closeModal("em"); });
+
+  document.getElementById("btnAddSave").addEventListener("click", async function () {
+    var proj = document.getElementById("ap").value;
+    var nm = document.getElementById("an").value.trim();
+    if (!nm) return alert("Name is required");
+    if (findItem(proj, nm).item) return alert("Item already exists in " + proj);
+    var ph = document.getElementById("app").value;
+    S[proj][ph].push({
+      name: nm,
+      date: document.getElementById("ad").value || "",
+      notes: document.getElementById("anot").value || "",
+      priority: +document.getElementById("aap").value || 3,
+      tags: document.getElementById("at").value.split(",").map(function (t) { return t.trim(); }).filter(Boolean),
+      owner: document.getElementById("ao").value,
+      human_actions: document.getElementById("aha").value.split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean),
+      blocked: false,
+      blocked_reason: ""
+    });
+    try {
+      await saveToAll();
+      closeModal("am");
+      ra();
+    } catch (e) {
+      setStatus(String(e.message || e), "err");
+      alert("Save failed: " + e.message);
+    }
+  });
+
+  document.getElementById("btnEditSave").addEventListener("click", async function () {
+    var proj = document.getElementById("ep").value;
+    var orig = document.getElementById("eorig").value;
+    var nm = document.getElementById("en").value.trim();
+    if (!nm) return alert("Name is required");
+    removeItem(proj, orig);
+    var ph = document.getElementById("eap2").value;
+    S[proj][ph].push({
+      name: nm,
+      date: document.getElementById("ed").value || "",
+      notes: document.getElementById("enot").value || "",
+      priority: +document.getElementById("eap").value || 3,
+      tags: document.getElementById("et").value.split(",").map(function (t) { return t.trim(); }).filter(Boolean),
+      owner: document.getElementById("eo").value,
+      human_actions: document.getElementById("eha").value.split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean),
+      blocked: document.getElementById("eb").value === "true",
+      blocked_reason: document.getElementById("ebr").value || ""
+    });
+    try {
+      await saveToAll();
+      closeModal("em");
+      ra();
+    } catch (e) {
+      setStatus(String(e.message || e), "err");
+      alert("Save failed: " + e.message);
+    }
+  });
+
+  document.getElementById("projFilters").addEventListener("click", function (ev) {
+    var btn = ev.target.closest("button[data-p]");
+    if (!btn) return;
+    filterProject = btn.getAttribute("data-p") || "all";
+    ra();
+  });
+
+  ["fView", "fPhase", "fSort"].forEach(function (id) {
+    document.getElementById(id).addEventListener("change", function () {
+      filterView = document.getElementById("fView").value;
+      filterPhase = document.getElementById("fPhase").value;
+      filterSort = document.getElementById("fSort").value;
+      sortCol = null;
+      ra();
+    });
+  });
+  document.getElementById("fQ").addEventListener("input", function () {
+    filterQ = document.getElementById("fQ").value.trim();
+    ra();
+  });
+
+  function onActionClick(ev) {
+    var resolve = ev.target.closest("button[data-resolve]");
+    var approve = ev.target.closest("button[data-approve]");
+    var edit = ev.target.closest("button[data-edit]");
+    var del = ev.target.closest("button[data-del]");
+    if (resolve) {
+      var rk = parseKey(resolve.getAttribute("data-resolve"));
+      if (!confirm("Mark \"" + rk.name + "\" done on your side and release to the agent?\n\nThis clears blocked and sets owner=agent.")) return;
+      releaseToAgent(rk.proj, rk.name, false);
+      return;
+    }
+    if (approve) {
+      var ak = parseKey(approve.getAttribute("data-approve"));
+      if (!confirm("Approve \"" + ak.name + "\" and release to the agent?")) return;
+      releaseToAgent(ak.proj, ak.name, true);
+      return;
+    }
+    if (edit) {
+      var ek = parseKey(edit.getAttribute("data-edit"));
+      openEdit(ek.proj, ek.name);
+      return;
+    }
+    if (del) {
+      var dk = parseKey(del.getAttribute("data-del"));
+      if (!confirm("Delete \"" + dk.name + "\" from " + dk.proj + "?")) return;
+      removeItem(dk.proj, dk.name);
+      saveToAll().then(ra).catch(function (e) {
+        setStatus(String(e.message || e), "err");
+      });
+    }
+  }
+
+  document.getElementById("humanQueue").addEventListener("click", onActionClick);
+  document.getElementById("mc").addEventListener("click", function (ev) {
+    var th = ev.target.closest("th[data-sort]");
+    if (th) {
+      var col = th.getAttribute("data-sort");
+      if (sortCol === col) sortDir = -sortDir;
+      else { sortCol = col; sortDir = 1; }
+      renderTable();
+      return;
+    }
+    onActionClick(ev);
+  });
+
+  document.querySelectorAll(".mod").forEach(function (m) {
+    m.addEventListener("click", function (ev) {
+      if (ev.target === m) closeModal(m.id);
+    });
+  });
+
+  loadJSON().then(ra).catch(function (e) {
+    console.error(e);
+    S = ensureShape({});
+    ra();
+    setStatus("Failed to load roadmaps.json: " + (e.message || e), "err");
+  });
+})();
+</script>
+</body>
+</html>
