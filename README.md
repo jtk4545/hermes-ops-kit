@@ -1,22 +1,36 @@
 # hermes-ops-kit
 
-Reusable **multi-job ops stack** for [Hermes Agent](https://hermes-agent.dev): shared brain, roadmap UI, audit control plane, CI autofix, merge-on-green, HITL queue, and a daily ops review.
+**Your coding agent runs a daily engineering ops team — CI, roadmap, PRs, and a “needs you” queue — while you stay mostly offline.**
 
-This is an **ops layer on top of Hermes** — not a Hermes fork. You need the `hermes` CLI + gateway already working (Telegram deliver optional but recommended).
+This kit turns [Hermes Agent](https://hermes-agent.dev) into a scheduled pipeline that:
 
-## What you get
+1. Watches your GitHub CI and opens real autofix PRs  
+2. Keeps a product roadmap (agent work vs human work)  
+3. Implements agent-owned items and merges green PRs  
+4. Texts you on Telegram only when something failed, needs approval, or it’s the end-of-day report  
 
-- Portable scripts (`brain_*`, `ops_audit`, CI/PR monitors, roadmap UI, HITL helpers)
-- Ops skills (`brain`, `roadmap`, `dev-test-loop`, `human-approval`, `ops-daily-review`, …)
-- Templated cron jobs with sparse-Telegram contracts
-- Empty brain + roadmap starters
-- `install.py` + `doctor.py`
+It is **not** another chatbot. It is **not** a Hermes fork. It’s the ops layer you install on top of Hermes so the agent shows up for work on a clock.
 
-**Not included:** your live brain content, cron history, tokens, or product-specific secrets.
+---
+
+## In one sentence
+
+Cron jobs + a shared brain + a local UI + sparse Telegram = an autonomous software ops loop you can actually leave running.
+
+| You get | You don’t get |
+|---------|----------------|
+| Daily CI → PR → merge loop | Another AI wrapper with no schedule |
+| Roadmap with clear human gates | Vague “assistant will figure it out” |
+| Audit trail + dashboard on `:8888` | Telegram spam for every successful job |
+| Installable templates for your org/repos | Someone else’s products, tokens, or history |
+
+**Requires:** Hermes already installed and gateway running. Then clone this kit, fill `ops-config.yaml`, run `install.py`.
+
+---
 
 ## How it works
 
-Hermes Agent’s **gateway** runs a cron ticker. This kit installs scripts, skills, and job templates into `$HERMES_HOME`. Each day those jobs read/write a shared **brain** and **roadmap**, record everything in an **audit** log, and only ping **Telegram** for failures, human-in-the-loop gates, or the evening ops report. Progress otherwise stays in the local UI (`:8888`).
+Hermes’s gateway ticks cron. This kit drops scripts, skills, and job templates into `$HERMES_HOME`. Jobs share a filesystem **brain** and **roadmap**, append an **audit** log, and keep quiet unless you need to know.
 
 ```mermaid
 flowchart TB
@@ -89,101 +103,110 @@ flowchart TB
   Roadmap --> UI
 ```
 
-**Loop in plain language**
+**The loop**
 
-1. **Sense** — Sentinel and CI scan check local projects and GitHub Actions; results land in the brain / audit.
-2. **Plan** — The PM cron classifies roadmap work as `owner=agent` or `owner=human`, with exact HITL steps when you must act.
-3. **Ship** — The executor runs a timeboxed dev-test loop on agent items, opens `hermes-exec` PRs, and enables auto-merge when safe. Autofix does the same for red CI (`hermes-autofix`).
-4. **Merge** — PR monitor merges green labeled PRs; approval holds wait for your `yes` (weekdays).
-5. **Unblock** — Blocked items show in the UI **Needs you** panel; releasing them returns ownership to the agent. Human-queue watch reminds on Telegram with backoff.
-6. **Review** — Evening digest + ops review grades the day from the audit scorecard and always sends the daily Telegram report.
+1. **Sense** — Local health + GitHub Actions → brain / audit  
+2. **Plan** — PM marks work `owner=agent` or `owner=human` (with exact steps when it’s you)  
+3. **Ship** — Executor timeboxes agent items into `hermes-exec` PRs; autofix does the same for red CI  
+4. **Merge** — Green labeled PRs auto-merge; risky ones wait for your `yes`  
+5. **Unblock** — UI **Needs you** panel + Telegram reminders until you release the item  
+6. **Review** — Evening report always hits Telegram; everything else stays in audit + UI  
 
-Sparse Telegram: routine success is `[SILENT]` (or empty script stdout). Detail lives in audit + UI. More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+More detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+---
+
+## What’s in the box
+
+- Scripts: brain bus, audit, CI/PR monitors, roadmap UI, HITL helpers  
+- Skills: `brain`, `roadmap`, `dev-test-loop`, `human-approval`, `ops-daily-review`, `auto-pr-fixer`, …  
+- Templated cron jobs (sparse Telegram contracts baked in)  
+- Empty brain + roadmap starters  
+- `install/install.py` + `install/doctor.py`  
+
+**Not shipped:** live brain content, cron history, tokens, or product-specific secrets.
+
+---
 
 ## Prerequisites
 
-1. Hermes Agent installed (`hermes` on PATH)
-2. Gateway running (`hermes gateway` / `hermes cron status`)
-3. Auth for the models you configure (`hermes auth list`)
-4. GitHub CLI (`gh`) authenticated — prefer `HERMES_GH_TOKEN` bot (see [docs/GITHUB_SERVICE_ACCOUNT.md](docs/GITHUB_SERVICE_ACCOUNT.md))
-5. Python 3.11+
-6. Optional: `pip install pyyaml` (for YAML config; JSON also works)
+1. Hermes Agent (`hermes` on PATH) + gateway running  
+2. Auth for the models in your config (`hermes auth list`)  
+3. `gh` authenticated — prefer `HERMES_GH_TOKEN` bot ([docs/GITHUB_SERVICE_ACCOUNT.md](docs/GITHUB_SERVICE_ACCOUNT.md))  
+4. Python 3.11+  
+5. Optional: `pip install pyyaml` (YAML config; JSON works without it)  
+
+---
 
 ## 10-minute setup
 
 ```bash
-git clone <this-repo> hermes-ops-kit
+git clone https://github.com/jtk4545/hermes-ops-kit.git
 cd hermes-ops-kit
 
-# 1) Configure
 cp config.example.yaml ops-config.yaml
-# edit ops-config.yaml — org, repos, projects_root, models, timezone
+# edit: org, repos, projects_root, models, timezone
 
-# 2) Install into HERMES_HOME + ~/.hermes
 python install/install.py --config ops-config.yaml
+# review $HERMES_HOME/cron/generated/CREATE_JOBS.md
+# then hermes cron create … per job
 
-# 3) Create cron jobs (review first — never silent-overwrite)
-#    Guide written to: $HERMES_HOME/cron/generated/CREATE_JOBS.md
-#    Use `hermes cron create ...` per job, or import carefully.
-
-# 4) Doctor
 python install/doctor.py
-
-# 5) UI
-python "$HERMES_HOME/scripts/server.py"
-# → http://127.0.0.1:8888/
+python "$HERMES_HOME/scripts/server.py"   # http://127.0.0.1:8888/
 ```
 
-On Windows, `%LOCALAPPDATA%\hermes` is the default `HERMES_HOME`.
+Windows default `HERMES_HOME`: `%LOCALAPPDATA%\hermes`.
 
-### Enable jobs gradually
+**Turn jobs on in layers:** scripts first (sentinel, PR monitor, UI, audit, human queue) → PM + market → CI autofix + executor.
 
-1. Script jobs first: consolidate, sentinel, PR monitor, UI watchdog, audit ingest, human queue  
-2. Then PM + market  
-3. Then CI autofix + executor  
+---
 
 ## Configuration
 
-See [config.example.yaml](config.example.yaml).
+[config.example.yaml](config.example.yaml)
 
 | Key | Purpose |
 |-----|---------|
 | `github.org` / `github.repos` | CI scan + PR monitor targets |
 | `products` | Roadmap / UI product keys |
 | `projects` | Local sentinel health checks |
-| `timezone` | Weekend HITL defer + schedules mental model |
+| `timezone` | Weekend HITL defer |
 | `models.*` | Provider/model IDs for agent jobs |
 
-Env knobs: `HERMES_HOME`, `HERMES_BRAIN_DIR`, `HERMES_PROJECTS_ROOT`, `HERMES_OPS_CONFIG`, `HERMES_GH_TOKEN`, `HERMES_OPS_TIMEZONE`.
+Env: `HERMES_HOME`, `HERMES_BRAIN_DIR`, `HERMES_PROJECTS_ROOT`, `HERMES_OPS_CONFIG`, `HERMES_GH_TOKEN`, `HERMES_OPS_TIMEZONE`.
 
-## Docs
-
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — day pipeline + control planes  
-- [docs/OPS_DESIGN.md](docs/OPS_DESIGN.md) — design SoT  
-- [docs/OPS_MODELS.md](docs/OPS_MODELS.md) — model routing  
-- [docs/GITHUB_SERVICE_ACCOUNT.md](docs/GITHUB_SERVICE_ACCOUNT.md) — bot token  
+---
 
 ## Telegram policy
 
-Only:
+Only three kinds of messages:
 
-1. **Failures** / needs attention  
-2. **HITL** ACTION/APPROVAL (weekdays)  
-3. **Daily ops report**  
+1. Failures / needs attention  
+2. Human ACTION / APPROVAL (weekdays)  
+3. Daily ops report  
 
-Routine success → `[SILENT]` / empty stdout → audit + UI.
+Everything else → `[SILENT]` / empty stdout → audit + UI.
+
+---
+
+## Docs
+
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — diagrams + control planes  
+- [docs/OPS_DESIGN.md](docs/OPS_DESIGN.md) — design SoT  
+- [docs/OPS_MODELS.md](docs/OPS_MODELS.md) — model routing  
+- [docs/GITHUB_SERVICE_ACCOUNT.md](docs/GITHUB_SERVICE_ACCOUNT.md) — bot token  
 
 ## Layout
 
 ```text
 hermes-ops-kit/
   config.example.yaml
-  scripts/                 # portable Python + HTML UI
-  skills/                  # ops skills only
-  templates/brain/         # empty brain starters
+  scripts/
+  skills/
+  templates/brain/
   templates/roadmaps.json
   templates/cron/jobs.template.json
-  install/{install,render_jobs,doctor}.py
+  install/
   docs/
 ```
 
