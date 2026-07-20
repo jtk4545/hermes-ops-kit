@@ -14,13 +14,13 @@ metadata:
 
 ## Inputs (required order)
 
-1. Read design: `{{HERMES_PROJECTS_ROOT}}\.hermes\OPS_DESIGN.md`
+1. Read design: `~/.hermes/OPS_DESIGN.md`
 2. Read digest (script-injected and/or):  
-   `python $HERMES_HOME/scripts/ops_day_digest.py`  
-   also `brain\DAILY_DIGEST_LATEST.md`
+   `python "$HERMES_HOME/scripts/ops_day_digest.py"`  
+   also `$HERMES_HOME/brain/DAILY_DIGEST_LATEST.md`
 3. **Primary grade source:** the digest’s **Audit day scorecard** (from `AUDIT.jsonl`).  
-   Or: `python $HERMES_HOME/scripts/ops_audit.py day-summary`
-4. Secondary: registry section, `brain\PIPELINES.md`, `human_block_format.py`, flagged `cron\output\` only when scorecard is thin
+   Or: `python "$HERMES_HOME/scripts/ops_audit.py" day-summary`
+4. Secondary: registry section, `$HERMES_HOME/brain/PIPELINES.md`, `human_block_format.py`, flagged `$HERMES_HOME/cron/output/` only when scorecard is thin
 
 Before finishing, append your own audit event via `ops_audit.py` (status ok/partial/error) summarizing grades + improvements.
 
@@ -35,28 +35,28 @@ Prefer audit events over raw cron dumps:
 | Blocked actionable | `blocked` events carry clear `human_gate` (ACTION:/APPROVAL:) or summary |
 | Delivery | No Telegram “Chat not found” / timeout on runs that should notify |
 | Expectation | Matches OPS_DESIGN row (brain-first, owner classification, HITL clarity, etc.) |
-| Cost | Cheapest viable tier used (no_agent > Bonsai > Copilot > Codex Sol) |
+| Cost | Cheapest viable tier used (no_agent > local/cheap > Grok 4.5 > Codex failover) |
 
 ## Allowed improvements (safe)
 
 You **may** apply these without asking:
 
 - Tighten cron prompts for `[SILENT]` / brain_read / audit recent+append / HITL wording
-- Pin `provider`/`model` downward for cost (e.g. keep PM/market on bonsai)
+- Pin `provider`/`model` downward for cost (e.g. keep PM/market on bonsai; keep coding on `xai-oauth` / `grok-4.5`)
 - Fix script path typos in prompts
 - Update skill text for clarity (dev-test-loop, human-approval, roadmap)
-- Append `brain\OPS_CHANGELOG.md` and `brain\DAILY_REPORTS.md`
+- Append `$HERMES_HOME/brain/OPS_CHANGELOG.md` and `$HERMES_HOME/brain/DAILY_REPORTS.md`
 - Refresh `OPS_DESIGN.md` “Known gaps” section if still accurate
 
 You **must not** without Telegram APPROVAL ask:
 
 - Delete cron jobs
-- Raise default model to Sol for all jobs
+- Raise all jobs to Grok/Codex (keep PM/market/ops on local/cheap)
 - Disable approvals / set `approvals.mode: off`
 - Force-merge prod or change git remotes
 - Put secrets in files or chat
 
-When editing `cron\jobs.json`: read → backup to `cron\jobs.backup.json` → patch carefully → validate JSON.
+When editing `$HERMES_HOME/cron/jobs.json`: read → backup to `$HERMES_HOME/cron/jobs.backup.json` → patch carefully → validate JSON.
 
 ## Telegram report shape (always deliver — never [SILENT])
 

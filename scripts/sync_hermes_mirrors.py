@@ -8,8 +8,20 @@ import shutil
 import sys
 from pathlib import Path
 
-HERMES_HOME = Path(os.environ.get("HERMES_HOME", Path(os.environ.get("LOCALAPPDATA", "")) / "hermes"))
-DOT_HERMES = Path.home() / ".hermes"
+try:
+    from hermes_paths import dot_hermes, hermes_home
+except Exception:
+    def hermes_home():
+        env = os.environ.get("HERMES_HOME", "").strip()
+        if env:
+            return Path(env)
+        return Path.home() / ".local" / "share" / "hermes"
+
+    def dot_hermes():
+        return Path.home() / ".hermes"
+
+HERMES_HOME = hermes_home()
+DOT_HERMES = dot_hermes()
 
 # Relative paths to mirror (newer mtime wins)
 MIRROR_PATHS = [
@@ -27,6 +39,8 @@ MIRROR_PATHS = [
     "scripts/brain_write.py",
     "scripts/brain_consolidate.py",
     "scripts/brain_paths.py",
+    "scripts/hermes_paths.py",
+    "scripts/ops_config.py",
     "scripts/human_block_format.py",
     "scripts/project-sentinel.py",
     "scripts/sync_hermes_mirrors.py",

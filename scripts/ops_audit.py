@@ -29,10 +29,20 @@ except Exception:
         return 'America/Chicago'
 
 TZ = ZoneInfo(_tz_name())
-HERMES_HOME = Path(
-    os.environ.get("HERMES_HOME", Path(os.environ.get("LOCALAPPDATA", "")) / "hermes")
-)
-BRAIN = HERMES_HOME / "brain"
+try:
+    from hermes_paths import brain_dir, hermes_home
+except Exception:
+    def hermes_home():
+        env = os.environ.get("HERMES_HOME", "").strip()
+        if env:
+            return Path(env)
+        return Path.home() / ".local" / "share" / "hermes"
+
+    def brain_dir():
+        return hermes_home() / "brain"
+
+HERMES_HOME = hermes_home()
+BRAIN = brain_dir()
 JSONL = BRAIN / "AUDIT.jsonl"
 MD_LATEST = BRAIN / "AUDIT.md"
 

@@ -15,23 +15,29 @@ except Exception:
     def _tz_name():
         return 'America/Chicago'
 
-HERMES_HOME = Path(
-    __import__("os").environ.get(
-        "HERMES_HOME",
-        str(Path.home() / "AppData/Local/hermes"),
-    )
-)
-# Windows HERMES_HOME is typically LOCALAPPDATA\hermes
-if not (HERMES_HOME / "cron").is_dir():
-    local = Path(__import__("os").environ.get("LOCALAPPDATA", "")) / "hermes"
-    if (local / "cron").is_dir():
-        HERMES_HOME = local
+try:
+    from hermes_paths import brain_dir, dot_hermes, hermes_home
+except Exception:
+    import os as _os
 
+    def hermes_home():
+        env = _os.environ.get("HERMES_HOME", "").strip()
+        if env:
+            return Path(env)
+        return Path.home() / ".local" / "share" / "hermes"
+
+    def brain_dir():
+        return hermes_home() / "brain"
+
+    def dot_hermes():
+        return Path.home() / ".hermes"
+
+HERMES_HOME = hermes_home()
 JOBS_FILE = HERMES_HOME / "cron" / "jobs.json"
 OUTPUT_DIR = HERMES_HOME / "cron" / "output"
-BRAIN_DIR = HERMES_HOME / "brain"
-ROADMAP_FILE = Path.home() / ".hermes" / "roadmaps.json"
-DESIGN_DOC = Path.home() / ".hermes" / "OPS_DESIGN.md"
+BRAIN_DIR = brain_dir()
+ROADMAP_FILE = dot_hermes() / "roadmaps.json"
+DESIGN_DOC = dot_hermes() / "OPS_DESIGN.md"
 TZ = ZoneInfo(_tz_name())
 
 # Expected behaviors for review (id -> expectations)

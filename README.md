@@ -79,7 +79,7 @@ Job-level detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 ## Prerequisites
 
 1. Hermes Agent (`hermes` on PATH) + gateway running  
-2. Auth for the models in your config (`hermes auth list`)  
+2. Auth for the models in your config (`hermes auth list`) — template coding jobs need `xai-oauth` (`hermes auth add xai-oauth`)  
 3. `gh` authenticated — prefer `HERMES_GH_TOKEN` bot ([docs/GITHUB_SERVICE_ACCOUNT.md](docs/GITHUB_SERVICE_ACCOUNT.md))  
 4. Python 3.11+  
 5. Optional: `pip install pyyaml` (YAML config; JSON works without it)  
@@ -103,7 +103,14 @@ python install/doctor.py
 python "$HERMES_HOME/scripts/server.py"   # http://127.0.0.1:8888/
 ```
 
-Windows default `HERMES_HOME`: `%LOCALAPPDATA%\hermes`.
+**`HERMES_HOME` defaults** (override anytime):
+
+| OS | Default |
+|----|---------|
+| Windows | `%LOCALAPPDATA%\hermes` |
+| Linux / macOS | `$XDG_DATA_HOME/hermes` or `~/.local/share/hermes` |
+
+Interactive mirrors and `roadmaps.json` live under `~/.hermes` on every OS. Prefer forward-slash paths in prompts/skills (`$HERMES_HOME/scripts/...`).
 
 **Turn jobs on in layers:** scripts first (sentinel, PR monitor, UI, audit, human queue) → PM + market → CI autofix + executor.
 

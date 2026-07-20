@@ -33,7 +33,7 @@ metadata:
 
 # Quality principles (generated from brain)
 
-> **Do not hand-edit this file.** Edit `%LOCALAPPDATA%/hermes/brain/PRINCIPLES.md` and `PR_QUALITY.md`, then run `python sync_quality_skill.py` (also run from brain consolidate).
+> **Do not hand-edit this file.** Edit `$HERMES_HOME/brain/PRINCIPLES.md` and `PR_QUALITY.md`, then run `python sync_quality_skill.py` (also run from brain consolidate).
 
 """
 

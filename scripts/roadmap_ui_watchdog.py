@@ -45,7 +45,12 @@ def main() -> int:
     if sys.platform == "win32":
         creationflags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP  # type: ignore[attr-defined]
 
-    log = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "hermes" / "logs"
+    try:
+        from hermes_paths import hermes_home
+
+        log = hermes_home() / "logs"
+    except Exception:
+        log = Path.home() / ".local" / "share" / "hermes" / "logs"
     log.mkdir(parents=True, exist_ok=True)
     out = open(log / "roadmap_ui.log", "a", encoding="utf-8")
     subprocess.Popen(

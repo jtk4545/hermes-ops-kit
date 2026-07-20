@@ -17,9 +17,16 @@ except Exception:
 from croniter import croniter
 
 TZ = ZoneInfo(_tz_name())
-HERMES_HOME = Path(
-    os.environ.get("HERMES_HOME", Path(os.environ.get("LOCALAPPDATA", "")) / "hermes")
-)
+try:
+    from hermes_paths import hermes_home
+except Exception:
+    def hermes_home():
+        env = os.environ.get("HERMES_HOME", "").strip()
+        if env:
+            return Path(env)
+        return Path.home() / ".local" / "share" / "hermes"
+
+HERMES_HOME = hermes_home()
 JOBS_FILE = HERMES_HOME / "cron" / "jobs.json"
 
 # Timeline noise by default (still shown in registry). Includes */5…*/30.

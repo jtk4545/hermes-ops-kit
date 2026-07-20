@@ -19,7 +19,9 @@
 | Ops config | `$HERMES_HOME/ops-config.yaml` |
 | GitHub bot setup | `~/.hermes/GITHUB_SERVICE_ACCOUNT.md` |
 
-Hermes home for cron/scripts/skills: `$HERMES_HOME` (default `%LOCALAPPDATA%\hermes` on Windows). Mirror helpers also live under `~/.hermes/scripts/` — **cron must resolve scripts under `$HERMES_HOME/scripts/`**.
+Hermes home for cron/scripts/skills: `$HERMES_HOME`  
+(defaults: Windows `%LOCALAPPDATA%/hermes`; Linux/macOS `$XDG_DATA_HOME/hermes` or `~/.local/share/hermes`).  
+Mirror helpers also live under `~/.hermes/scripts/` — **cron must resolve scripts under `$HERMES_HOME/scripts/`**.
 
 ---
 
@@ -68,16 +70,16 @@ Executor marks Done when merged (or auto-merge queued, checks not red). Prod/bre
 
 ## Model routing
 
-See `OPS_MODELS.md`. Cost ladder: `no_agent` → local/cheap → mid → strongest coding model.
+See `OPS_MODELS.md`. Cost ladder: `no_agent` → local/cheap → **Grok 4.5** → optional Codex failover.
 
-Configure concrete provider/model IDs in `ops-config.yaml` → `models:`. Configure Hermes `fallback_providers` so rate limits on the executor path failover instead of silent stalls.
+Configure concrete provider/model IDs in `ops-config.yaml` → `models:`. Default template coding jobs use `xai-oauth` / `grok-4.5` (executor + CI autofix). Configure Hermes `fallback_providers` so rate limits on the coding path failover instead of silent stalls.
 
 | Tier | Use |
 |------|-----|
 | $0 scripts (`no_agent`) | Sentinel, PR monitor, brain consolidate, digest gather |
 | Local / cheap | PM, market research, daily ops review, auxiliaries |
-| Mid-tier coding | CI autofix first attempt |
-| Strongest coding | Roadmap executor (primary); autofix escalate on repeat fail |
+| Grok 4.5 (`xai-oauth` / `grok-4.5`) | Roadmap executor + CI autofix (default template) |
+| Optional Codex failover | Rate-limit / second attempt only — not the daily default |
 
 ---
 
@@ -240,7 +242,7 @@ So sentinel keeps **exit 0** when the script itself succeeded. Product failures 
 
 | Item | Status |
 |------|--------|
-| Strongest model as daily default for PM/market/ops | Intentionally **not** — quota; escalate only |
+| Grok/Codex as daily default for PM/market/ops | Intentionally **not** — keep those on local/cheap; Grok for executor + autofix |
 | Roadmap UI autostart | Prefer `roadmap_ui_watchdog` + optional OS logon task; keep `roadmap.html` synced |
 | Live proof of every agent path | Smoke lightly; daily review watches ongoing health |
 | Market prompt paths | May use `~/.hermes/scripts/`; keep mirrors in sync with `$HERMES_HOME/scripts` |

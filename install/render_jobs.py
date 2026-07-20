@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 KIT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(KIT_ROOT / "scripts"))
 
 
 def _load_yaml_or_json(path: Path) -> dict[str, Any]:
@@ -29,16 +30,14 @@ def _load_yaml_or_json(path: Path) -> dict[str, Any]:
 
 
 def hermes_home() -> Path:
-    env = os.environ.get("HERMES_HOME", "").strip()
-    if env:
-        return Path(env)
-    local = os.environ.get("LOCALAPPDATA", "")
-    if local:
-        return Path(local) / "hermes"
-    return Path.home() / ".hermes-home"
+    from hermes_paths import hermes_home as _home
+
+    return _home()
 
 
 def placeholders(cfg: dict[str, Any]) -> dict[str, str]:
+    from hermes_paths import dot_hermes
+
     home = hermes_home()
     home_posix = home.as_posix()
     models = cfg.get("models") or {}
@@ -47,24 +46,27 @@ def placeholders(cfg: dict[str, Any]) -> dict[str, str]:
         block = models.get(key) or {}
         return str(block.get(field) or default)
 
+    projects_root = Path(
+        cfg.get("projects_root") or os.environ.get("HERMES_PROJECTS_ROOT") or Path.home()
+    )
     return {
         "{{HERMES_HOME}}": str(home),
         "{{HERMES_HOME_POSIX}}": home_posix,
-        "{{DOT_HERMES}}": str(Path.home() / ".hermes"),
+        "{{DOT_HERMES}}": str(dot_hermes()),
+        "{{DOT_HERMES_POSIX}}": dot_hermes().as_posix(),
         "{{GITHUB_ORG}}": str((cfg.get("github") or {}).get("org") or "your-org"),
-        "{{HERMES_PROJECTS_ROOT}}": str(
-            cfg.get("projects_root") or os.environ.get("HERMES_PROJECTS_ROOT") or Path.home()
-        ),
+        "{{HERMES_PROJECTS_ROOT}}": str(projects_root),
+        "{{HERMES_PROJECTS_ROOT_POSIX}}": projects_root.as_posix(),
         "{{MODEL_PM}}": m("pm", "model", "bonsai-27b"),
         "{{PROVIDER_PM}}": m("pm", "provider", "bonsai-local"),
         "{{MODEL_MARKET}}": m("market", "model", "bonsai-27b"),
         "{{PROVIDER_MARKET}}": m("market", "provider", "bonsai-local"),
         "{{MODEL_OPS_REVIEW}}": m("ops_review", "model", "bonsai-27b"),
         "{{PROVIDER_OPS_REVIEW}}": m("ops_review", "provider", "bonsai-local"),
-        "{{MODEL_AUTOFIX}}": m("autofix", "model", "gpt-5.4"),
-        "{{PROVIDER_AUTOFIX}}": m("autofix", "provider", "copilot"),
-        "{{MODEL_EXECUTOR}}": m("executor", "model", "gpt-5.6-sol"),
-        "{{PROVIDER_EXECUTOR}}": m("executor", "provider", "openai-codex"),
+        "{{MODEL_AUTOFIX}}": m("autofix", "model", "grok-4.5"),
+        "{{PROVIDER_AUTOFIX}}": m("autofix", "provider", "xai-oauth"),
+        "{{MODEL_EXECUTOR}}": m("executor", "model", "grok-4.5"),
+        "{{PROVIDER_EXECUTOR}}": m("executor", "provider", "xai-oauth"),
     }
 
 

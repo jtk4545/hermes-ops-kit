@@ -7,12 +7,14 @@ Configure providers in Hermes auth / `hermes model`, then set the same IDs under
 | Sentinel, PR monitor, consolidate, day digest gather | `no_agent` / script | $0 — sentinel uses exit 0 on success (issues via stdout + audit); missing tools → `UNAVAILABLE` |
 | Pipeline scan gate | script + wakeAgent | wakes autofix only on failures |
 | PM + market + daily ops review | local or cheap cloud | default template: `bonsai-local` / `bonsai-27b` |
-| CI autofix (first attempt) | mid-tier coding model | default template: `copilot` / `gpt-5.4` |
-| Roadmap executor | strongest coding model you have | default template: `openai-codex` / `gpt-5.6-sol` |
+| CI autofix | coding model (frugal) | default template: `xai-oauth` / `grok-4.5` |
+| Roadmap executor | coding model (frugal, timeboxed) | default template: `xai-oauth` / `grok-4.5` |
 
-**Cost ladder for new jobs:** `no_agent` → local/cheap → mid → strongest.
+**Auth:** run `hermes auth add xai-oauth` (and your local/cheap provider) before creating agent jobs.
 
-Configure Hermes `fallback_providers` so rate limits on the executor path failover instead of silent stalls.
+**Cost ladder for new jobs:** `no_agent` → local/cheap → Grok 4.5 → optional Codex failover.
+
+Configure Hermes `fallback_providers` so Grok rate limits failover (e.g. to Codex) instead of silent stalls. Prefer a hard stop + `QUOTA:` audit when both coding providers are exhausted — do not thrash on Copilot/Bonsai for executor/autofix.
 
 Full design: `OPS_DESIGN.md`.
 

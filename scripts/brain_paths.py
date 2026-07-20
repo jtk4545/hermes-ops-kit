@@ -3,12 +3,11 @@
 
 from __future__ import annotations
 
-import os
-from pathlib import Path
+from hermes_paths import brain_dir, hermes_home, roadmap_file
 
-HERMES_HOME = Path(os.environ.get("HERMES_HOME", os.path.expandvars(r"%LOCALAPPDATA%\hermes")))
-BRAIN_DIR = Path(os.environ.get("HERMES_BRAIN_DIR", str(HERMES_HOME / "brain")))
-ROADMAP_FILE = Path(os.path.expanduser("~/.hermes/roadmaps.json"))
+HERMES_HOME = hermes_home()
+BRAIN_DIR = brain_dir()
+ROADMAP_FILE = roadmap_file()
 
 SECTIONS = {
     "INDEX": "INDEX.md",
@@ -19,7 +18,6 @@ SECTIONS = {
     "DECISIONS": "DECISIONS.md",
     "PRINCIPLES": "PRINCIPLES.md",
     "PR_QUALITY": "PR_QUALITY.md",
-
 }
 
 DEFAULT_BUDGETS = {
@@ -31,5 +29,4 @@ DEFAULT_BUDGETS = {
     "DECISIONS.md": 8000,
     "PRINCIPLES.md": 12000,
     "PR_QUALITY.md": 16000,
-
 }

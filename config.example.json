@@ -24,7 +24,7 @@
     "pm": {"provider": "bonsai-local", "model": "bonsai-27b"},
     "market": {"provider": "bonsai-local", "model": "bonsai-27b"},
     "ops_review": {"provider": "bonsai-local", "model": "bonsai-27b"},
-    "autofix": {"provider": "copilot", "model": "gpt-5.4"},
-    "executor": {"provider": "openai-codex", "model": "gpt-5.6-sol"}
+    "autofix": {"provider": "xai-oauth", "model": "grok-4.5"},
+    "executor": {"provider": "xai-oauth", "model": "grok-4.5"}
   }
 }

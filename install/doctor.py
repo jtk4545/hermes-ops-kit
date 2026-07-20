@@ -13,13 +13,12 @@ from pathlib import Path
 
 
 def hermes_home() -> Path:
-    env = os.environ.get("HERMES_HOME", "").strip()
-    if env:
-        return Path(env)
-    local = os.environ.get("LOCALAPPDATA", "")
-    if local:
-        return Path(local) / "hermes"
-    return Path.home() / ".hermes-home"
+    scripts = Path(__file__).resolve().parent.parent / "scripts"
+    if str(scripts) not in sys.path:
+        sys.path.insert(0, str(scripts))
+    from hermes_paths import hermes_home as _home
+
+    return _home()
 
 
 def ok(msg: str) -> None:

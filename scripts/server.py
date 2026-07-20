@@ -13,11 +13,11 @@ from urllib.parse import parse_qs, urlparse
 SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
-ROADMAP_FILE = Path(os.path.expanduser("~/.hermes/roadmaps.json"))
-HERMES_HOME = Path(
-    os.environ.get("HERMES_HOME", Path(os.environ.get("LOCALAPPDATA", "")) / "hermes")
-)
-BRAIN_DIR = HERMES_HOME / "brain"
+from hermes_paths import brain_dir, hermes_home, roadmap_file  # noqa: E402
+
+ROADMAP_FILE = roadmap_file()
+HERMES_HOME = hermes_home()
+BRAIN_DIR = brain_dir()
 AUDIT_JSONL = BRAIN_DIR / "AUDIT.jsonl"
 PHASES = ["In Progress", "Upcoming", "Backlog", "Done"]
 try:

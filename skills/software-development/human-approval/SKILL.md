@@ -24,7 +24,7 @@ Two kinds of human asks — keep them distinct:
 Every escalation **must** write the roadmap item so the UI panel is complete:
 
 ```bash
-python {{HERMES_PROJECTS_ROOT}}\.hermes\scripts\roadmap_cli.py edit -p <project> -i "<item>" \
+python "$HERMES_HOME/scripts/roadmap_cli.py" edit -p <project> -i "<item>" \
   --owner human --blocked true \
   --blocked-reason "ACTION: <one short sentence>" \
   --human-actions "Step one|Step two|Step three|Click Release to agent in UI"
@@ -43,7 +43,7 @@ Panel: `http://127.0.0.1:8888/` → **Needs you**
 ## Telegram packet
 
 ```bash
-python {{HERMES_PROJECTS_ROOT}}\.hermes\scripts\human_block_format.py --blocked-only
+python "$HERMES_HOME/scripts/human_block_format.py" --blocked-only
 ```
 
 Cron **`g10humanq`** (`human_queue_watch.py`, every 15m) also Telegram-reminds with **exponential backoff** (immediate → 30m → 1h → 2h → 4h → 8h → 24h) until the item is released. Prefer letting that watch nag; still send a full packet on first escalate.
@@ -63,7 +63,7 @@ Good: numbered, copy-pasteable steps the UI can show.
 Or CLI:
 
 ```bash
-python {{HERMES_PROJECTS_ROOT}}\.hermes\scripts\roadmap_cli.py edit -p <project> -i "<item>" \
+python "$HERMES_HOME/scripts/roadmap_cli.py" edit -p <project> -i "<item>" \
   --owner agent --blocked false --blocked-reason ""
 ```
 

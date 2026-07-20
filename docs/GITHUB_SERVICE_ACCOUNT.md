@@ -14,11 +14,11 @@ Scripts honor **`HERMES_GH_TOKEN`** first (then `GH_TOKEN`, then `gh auth login`
 4. Set a user environment variable (never commit the token):
 
    ```bash
+   # macOS / Linux (shell profile)
+   export HERMES_GH_TOKEN="github_pat_..."
+
    # Windows PowerShell
    setx HERMES_GH_TOKEN "github_pat_..."
-
-   # macOS/Linux (shell profile)
-   export HERMES_GH_TOKEN="github_pat_..."
    ```
 
    Restart the Hermes gateway so cron picks it up.

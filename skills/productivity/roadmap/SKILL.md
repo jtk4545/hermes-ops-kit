@@ -12,10 +12,10 @@ metadata:
 
 # Roadmap
 
-**Source of truth:** `{{HERMES_PROJECTS_ROOT}}\.hermes\roadmaps.json`  
-**CLI:** `python {{HERMES_PROJECTS_ROOT}}\.hermes\scripts\roadmap_cli.py`  
-**UI:** `python {{HERMES_PROJECTS_ROOT}}\.hermes\scripts\server.py` → http://127.0.0.1:8888/  
-**Human queue formatter:** `python {{HERMES_PROJECTS_ROOT}}\.hermes\scripts\human_block_format.py`
+**Source of truth:** `~/.hermes/roadmaps.json`  
+**CLI:** `python "$HERMES_HOME/scripts/roadmap_cli.py"` (or `~/.hermes/scripts/…` for interactive)  
+**UI:** `python "$HERMES_HOME/scripts/server.py"` → http://127.0.0.1:8888/  
+**Human queue formatter:** `python "$HERMES_HOME/scripts/human_block_format.py"`
 
 ## Owner classification (required)
 
@@ -56,11 +56,11 @@ Rules:
 ## CLI examples
 
 ```bash
-python {{HERMES_PROJECTS_ROOT}}\.hermes\scripts\roadmap_cli.py show
-python {{HERMES_HOME}}/scripts/roadmap_cli.py add -p example-app -i "Ship feature X" --phase Upcoming --priority 1 --owner agent --tags core --notes "Why: Users cannot export. Scope: export/*.py. Acceptance: unit tests for CSV; smoke green. Context: parent reporting epic. Out of scope: PDF."
-python {{HERMES_HOME}}/scripts/roadmap_cli.py add -p example-app -i "Enable billing" --phase Upcoming --priority 1 --owner human --blocked true --blocked-reason "ACTION: Needs billing admin" --human-actions "Open billing console|Attach project|Reply done" --notes "Why: Deploy blocked without billing. Scope: cloud project. Acceptance: billing account linked. Context: blocks feature X. Out of scope: budget alerts."
-python {{HERMES_HOME}}/scripts/roadmap_cli.py edit -p example-app -i "Ship feature X" --notes "Why: … Scope: … Acceptance: … Context: … Out of scope: …"
-python {{HERMES_PROJECTS_ROOT}}\.hermes\scripts\human_block_format.py
+python "$HERMES_HOME/scripts/roadmap_cli.py" show
+python "$HERMES_HOME/scripts/roadmap_cli.py" add -p example-app -i "Ship feature X" --phase Upcoming --priority 1 --owner agent --tags core --notes "Why: Users cannot export. Scope: export/*.py. Acceptance: unit tests for CSV; smoke green. Context: parent reporting epic. Out of scope: PDF."
+python "$HERMES_HOME/scripts/roadmap_cli.py" add -p example-app -i "Enable billing" --phase Upcoming --priority 1 --owner human --blocked true --blocked-reason "ACTION: Needs billing admin" --human-actions "Open billing console|Attach project|Reply done" --notes "Why: Deploy blocked without billing. Scope: cloud project. Acceptance: billing account linked. Context: blocks feature X. Out of scope: budget alerts."
+python "$HERMES_HOME/scripts/roadmap_cli.py" edit -p example-app -i "Ship feature X" --notes "Why: … Scope: … Acceptance: … Context: … Out of scope: …"
+python "$HERMES_HOME/scripts/human_block_format.py"
 ```
 
 ## Telegram when human is needed

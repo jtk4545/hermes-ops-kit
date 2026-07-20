@@ -40,21 +40,17 @@ DEFAULTS: dict[str, Any] = {
         "pm": {"provider": "bonsai-local", "model": "bonsai-27b"},
         "market": {"provider": "bonsai-local", "model": "bonsai-27b"},
         "ops_review": {"provider": "bonsai-local", "model": "bonsai-27b"},
-        "autofix": {"provider": "copilot", "model": "gpt-5.4"},
-        "executor": {"provider": "openai-codex", "model": "gpt-5.6-sol"},
+        "autofix": {"provider": "xai-oauth", "model": "grok-4.5"},
+        "executor": {"provider": "xai-oauth", "model": "grok-4.5"},
     },
     "tracked_branches": ["main", "trunk", "dev", "qa"],
 }
 
 
 def _hermes_home() -> Path:
-    env = os.environ.get("HERMES_HOME", "").strip()
-    if env:
-        return Path(env)
-    local = os.environ.get("LOCALAPPDATA", "")
-    if local:
-        return Path(local) / "hermes"
-    return Path.home() / ".hermes-home"
+    from hermes_paths import hermes_home
+
+    return hermes_home()
 
 
 def _candidate_paths() -> list[Path]:

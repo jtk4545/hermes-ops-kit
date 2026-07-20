@@ -26,16 +26,17 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+SCRIPTS = Path(__file__).resolve().parent
+# Cron shells do not consistently export HERMES_HOME. Pin to install root
+# (…/hermes/scripts/this.py → parent is HERMES_HOME).
+os.environ.setdefault("HERMES_HOME", str(SCRIPTS.parent))
+
+from hermes_paths import brain_dir  # noqa: E402
 from ops_config import projects_root, sentinel_projects  # noqa: E402
 
 BASE = projects_root()
-BRAIN_DIR = Path(
-    os.environ.get("HERMES_BRAIN_DIR", os.path.expandvars(r"%LOCALAPPDATA%\hermes\brain"))
-)
-SCRIPTS = Path(__file__).resolve().parent
-# Cron shells do not consistently export HERMES_HOME. Pin audit writes.
-os.environ.setdefault("HERMES_HOME", str(SCRIPTS.parent))
-# Cron's minimal Windows env may omit Hermes-bundled Node.
+BRAIN_DIR = brain_dir()
+# Thin cron PATH may omit Hermes-bundled Node (common on Windows installs).
 NODE_BIN = SCRIPTS.parent / "node"
 if NODE_BIN.is_dir():
     os.environ["PATH"] = str(NODE_BIN) + os.pathsep + os.environ.get("PATH", "")
