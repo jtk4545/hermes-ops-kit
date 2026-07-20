@@ -22,11 +22,18 @@ products:
 
 # Local health checks for project-sentinel.py
 # Each check is [label, [argv...]]
+# Optional argv placeholders (resolved at runtime; missing tool → UNAVAILABLE, not FAIL):
+#   {python} {node} {ruff} {tsc} {eslint} {go} {gradlew}
 projects:
   example-app:
     path: example-app
     checks:
       - [Compile check, ["echo", "configure me"]]
+      # Examples (uncomment / adapt):
+      # - [Lint, ["{ruff}", "check", ".", "--statistics"]]
+      # - [Types, ["{tsc}", "--noEmit"]]
+      # - [Go vet, ["{go}", "vet", "./..."]]
+      # - [Gradle verify, ["{gradlew}", "verify", "--no-daemon"]]
 
 tracked_branches:
   - main

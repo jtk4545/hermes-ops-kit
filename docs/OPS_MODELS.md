@@ -4,7 +4,7 @@ Configure providers in Hermes auth / `hermes model`, then set the same IDs under
 
 | Job class | Suggested tier | Notes |
 |-----------|----------------|-------|
-| Sentinel, PR monitor, consolidate, day digest gather | `no_agent` / script | $0 |
+| Sentinel, PR monitor, consolidate, day digest gather | `no_agent` / script | $0 — sentinel uses exit 0 on success (issues via stdout + audit); missing tools → `UNAVAILABLE` |
 | Pipeline scan gate | script + wakeAgent | wakes autofix only on failures |
 | PM + market + daily ops review | local or cheap cloud | default template: `bonsai-local` / `bonsai-27b` |
 | CI autofix (first attempt) | mid-tier coding model | default template: `copilot` / `gpt-5.4` |

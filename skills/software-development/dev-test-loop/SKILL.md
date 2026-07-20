@@ -1,7 +1,7 @@
 ---
 name: dev-test-loop
 description: Use when executing a roadmap item end-to-end (implement, test, PR, CI). Enforces agent vs human gates, clear Telegram approvals, and quality principles for the Hermes ops executor.
-version: 1.2.0
+version: 1.3.0
 author: Hermes Ops
 license: MIT
 metadata:
@@ -104,15 +104,20 @@ Stop and escalate when you hit any gate below. Use skill `human-approval`.
 5. Move roadmap item to Done only when merged (or acceptance met and merge queued) — not merely when PR opened; `brain_write.py PRODUCTS --append` (3–5 lines)
 6. **Quality loop:** append a dated lesson under that repo in `PR_QUALITY.md` (`brain_write.py PR_QUALITY --append`). If the lesson is cross-product, append under PRINCIPLES → Executor. Then `python .../sync_quality_skill.py`.
 
+## Item context before coding
+
+If the selected roadmap item’s `notes` lack `Why:` / `Acceptance:` (or are empty), **enrich with `roadmap_cli.py edit --notes …` first** using the roadmap skill ITEM CONTEXT template. Do not start a vague item.
+
 ## Follow-ups (end of run)
 
-Before finishing, scan what this work unlocked or revealed. Add concrete items with `roadmap_cli.py add` (`--owner`, `--priority`, phase Upcoming/Backlog). No busywork.
+Before finishing, scan what this work unlocked or revealed. Add concrete items with `roadmap_cli.py add` (`--owner`, `--priority`, phase Upcoming/Backlog, **full `--notes`** per ITEM CONTEXT). No busywork.
 
 ## Completion criteria
 
 - Used the ~20–30m window productively (or queue empty / HITL-only)
-- Large items were decomposed onto the roadmap with priorities when needed
-- Follow-ups added when real next work exists
+- Selected items had structured notes (Why / Acceptance) before coding; thin notes were enriched first
+- Large items were decomposed onto the roadmap with priorities + full notes when needed
+- Follow-ups added when real next work exists (with `--notes`)
 - Either: PR(s) open with checks watched + auto-merge enabled (safe) **or** approval Telegram sent (risky) + brain/roadmap updated  
 - Or: blocked item with Telegram human packet (formatter output) and no silent stall  
 - Never: `[SILENT]` while a **new** human/approval ask must be delivered (weekday HITL packet)  
