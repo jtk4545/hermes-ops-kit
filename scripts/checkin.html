@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Check-in</title>
+<style>
+:root {
+  --bg: #0f0f1a;
+  --surface: #1a1a2e;
+  --text: #eee;
+  --muted: #9a9ab0;
+  --ok: #51cf66;
+  --warn: #ffd93d;
+  --err: #ff6b6b;
+  --accent: #00d2d3;
+  --human: #ffa94d;
+  --border: rgba(255,255,255,.08);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 20px;
+}
+.wrap { max-width: 920px; margin: 0 auto; }
+header { text-align: center; margin-bottom: 10px; }
+header h1 { font-size: 1.45rem; margin-bottom: 4px; }
+header p { color: var(--muted); font-size: .88rem; }
+nav.top {
+  display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin-bottom: 16px;
+}
+nav.top a {
+  color: var(--accent); text-decoration: none;
+  padding: 6px 12px; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--surface); font-size: .85rem;
+}
+nav.top a.active { border-color: var(--accent); }
+.status { color: var(--muted); font-size: .85rem; margin-bottom: 12px; min-height: 1.2em; }
+.status.err { color: var(--err); }
+.badge {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  font-size: .75rem; font-weight: 650;
+  background: rgba(0,210,211,.12); color: var(--accent);
+}
+.badge.warn { background: rgba(255,169,77,.18); color: var(--human); }
+.badge.err { background: rgba(255,107,107,.15); color: var(--err); }
+.badge.ok { background: rgba(81,207,102,.15); color: var(--ok); }
+.badge.muted { background: rgba(255,255,255,.06); color: var(--muted); }
+a { color: var(--accent); }
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+.card h3 {
+  font-size: .78rem; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); margin-bottom: 10px;
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+}
+.card h3 .count { color: var(--accent); font-weight: 700; text-transform: none; letter-spacing: 0; }
+.item {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+  border-left: 4px solid var(--human);
+}
+.item.approval { border-left-color: var(--human); }
+.item.action { border-left-color: #74c0fc; }
+.item.human { border-left-color: #ced4da; }
+.item .top {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline;
+  margin-bottom: 4px;
+}
+.item .name { font-weight: 650; font-size: .95rem; }
+.item .meta { color: var(--muted); font-size: .78rem; }
+.item .reason { font-size: .88rem; margin: 6px 0; line-height: 1.35; }
+.item .acts { margin-top: 6px; padding-left: 1.15rem; }
+.item .acts li { font-size: .85rem; color: var(--text); margin: 4px 0; }
+.pr-row {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-left: 4px solid var(--accent);
+}
+.pr-row.flag-CONFLICT { border-left-color: var(--err); }
+.pr-row.flag-APPROVAL { border-left-color: var(--human); }
+.pr-row.flag-BEHIND { border-left-color: var(--warn); }
+.pr-row.flag-APPROVED { border-left-color: var(--ok); }
+.pr-row.flag-DRAFT { border-left-color: var(--muted); opacity: .9; }
+.pr-row .top {
+  display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline;
+  margin-bottom: 4px;
+}
+.pr-row .title a {
+  color: var(--text); font-weight: 650; text-decoration: none;
+}
+.pr-row .title a:hover { color: var(--accent); text-decoration: underline; }
+.pr-row .meta { color: var(--muted); font-size: .78rem; }
+.pr-row .labels { margin-top: 4px; }
+.pr-row .tag {
+  display: inline-block; padding: 1px 6px; border-radius: 4px;
+  background: rgba(78,205,196,.12); color: var(--accent);
+  font-size: .7rem; margin: 0 4px 2px 0;
+}
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.btn {
+  cursor: pointer;
+  border: 1px solid rgba(0,210,211,.4);
+  background: var(--surface);
+  color: var(--accent);
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: .85rem;
+}
+.empty { color: var(--muted); font-size: .9rem; padding: 8px 0; }
+.foot { color: var(--muted); font-size: .78rem; margin-top: 18px; text-align: center; }
+code { font-family: ui-monospace, Consolas, monospace; font-size: .84em; }
+.pager {
+  display: flex; gap: 8px; align-items: center; justify-content: flex-end;
+  margin-top: 8px; flex-wrap: wrap; font-size: .82rem; color: var(--muted);
+}
+.pager button:disabled { opacity: .45; cursor: not-allowed; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Check-in</h1>
+    <p>Hermes open PRs · roadmap items that need you</p>
+  </header>
+  <nav class="top">
+    <a href="/">Roadmap</a>
+    <a href="/instances">Instances</a>
+    <a class="active" href="/checkin">Check-in</a>
+    <a href="/jobs">Jobs</a>
+    <a href="/audit">Audit</a>
+  </nav>
+  <div class="toolbar">
+    <button type="button" class="btn" id="btnRefresh">Refresh</button>
+    <button type="button" class="btn" id="btnRefreshPrs">Refresh PRs</button>
+  </div>
+  <div id="status" class="status">Loading…</div>
+  <div id="root"></div>
+  <p class="foot" id="lanFoot"></p>
+</div>
+<script>
+(function () {
+  var root = document.getElementById("root");
+  var statusEl = document.getElementById("status");
+  var lanFoot = document.getElementById("lanFoot");
+  var prPage = 1;
+  var PR_PAGE_SIZE = 12;
+  var lastData = null;
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function linkify(text) {
+    var s = esc(text);
+    s = s.replace(/(https?:\/\/[^\s<&]+)/g, function (m) {
+      return '<a href="' + m + '" target="_blank" rel="noopener">' + m + "</a>";
+    });
+    s = s.replace(/\b([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)#(\d+)\b/g, function (_, repo, num) {
+      return '<a href="https://github.com/' + repo + "/pull/" + num +
+        '" target="_blank" rel="noopener">' + repo + "#" + num + "</a>";
+    });
+    return s;
+  }
+
+  function badge(cls, text) {
+    return '<span class="badge ' + cls + '">' + esc(text) + "</span>";
+  }
+
+  function flagBadge(flag) {
+    var f = flag || "OPEN";
+    var cls = "muted";
+    if (f === "CONFLICT") cls = "err";
+    else if (f === "APPROVAL" || f === "BEHIND") cls = "warn";
+    else if (f === "APPROVED") cls = "ok";
+    return badge(cls, f);
+  }
+
+  function renderItem(n) {
+    var k = (n.kind || "HUMAN").toLowerCase();
+    var acts = (n.human_actions || [])
+      .map(function (a) { return "<li>" + linkify(a) + "</li>"; })
+      .join("");
+    return (
+      '<div class="item ' + esc(k) + '">' +
+        '<div class="top">' +
+          badge(k === "approval" ? "warn" : k === "action" ? "" : "muted", n.kind || "") +
+          '<span class="name">' + esc(n.name) + "</span>" +
+          '<span class="meta">' + esc(n.project) + " · " + esc(n.phase) +
+            (n.priority != null ? " · P" + esc(n.priority) : "") +
+          "</span>" +
+        "</div>" +
+        (n.blocked_reason ? '<div class="reason">' + linkify(n.blocked_reason) + "</div>" : "") +
+        (n.notes ? '<div class="meta" style="margin-top:4px">' + linkify(n.notes) + "</div>" : "") +
+        (acts ? '<ul class="acts">' + acts + "</ul>" : "") +
+      "</div>"
+    );
+  }
+
+  function renderPr(p) {
+    var flag = p.flag || "OPEN";
+    var labels = (p.labels || []).slice(0, 8).map(function (t) {
+      return '<span class="tag">' + esc(t) + "</span>";
+    }).join("");
+    var shortRepo = String(p.repo || "").replace(/^[^/]+\//, "");
+    var url = p.url || ("https://github.com/" + p.repo + "/pull/" + p.number);
+    return (
+      '<div class="pr-row flag-' + esc(flag) + '">' +
+        '<div class="top">' +
+          flagBadge(flag) +
+          '<span class="title"><a href="' + esc(url) + '" target="_blank" rel="noopener">' +
+            esc(shortRepo) + " #" + esc(p.number) + " — " + esc(p.title) +
+          "</a></span>" +
+        "</div>" +
+        '<div class="meta">' +
+          esc(p.repo) +
+          (p.author ? " · @" + esc(p.author) : "") +
+          (p.head_ref ? " · <code>" + esc(p.head_ref) + "</code>" : "") +
+          (p.merge_state ? " · merge " + esc(p.merge_state) : "") +
+          (p.review_decision ? " · review " + esc(p.review_decision) : "") +
+          ' · <a href="' + esc(url) + '" target="_blank" rel="noopener">open ↗</a>' +
+        "</div>" +
+        (labels ? '<div class="labels">' + labels + "</div>" : "") +
+      "</div>"
+    );
+  }
+
+  function renderOpenPrs(data) {
+    var block = data.open_prs || {};
+    var items = block.items || [];
+    var total = items.length;
+    var pages = Math.max(1, Math.ceil(total / PR_PAGE_SIZE));
+    if (prPage > pages) prPage = pages;
+    if (prPage < 1) prPage = 1;
+    var start = (prPage - 1) * PR_PAGE_SIZE;
+    var slice = items.slice(start, start + PR_PAGE_SIZE);
+
+    var body = total
+      ? slice.map(renderPr).join("")
+      : '<p class="empty">No open Hermes bot PRs.</p>';
+
+    if (block.errors && block.errors.length) {
+      body += '<p class="empty" style="color:var(--err)">Fetch notes: ' +
+        esc(block.errors.join("; ")) + "</p>";
+    }
+
+    var pager = "";
+    if (total > PR_PAGE_SIZE) {
+      pager =
+        '<div class="pager">' +
+          "<span>Page " + prPage + " / " + pages + " · " + total + "</span>" +
+          '<button type="button" class="btn" id="prPrev"' + (prPage <= 1 ? " disabled" : "") + ">Prev</button>" +
+          '<button type="button" class="btn" id="prNext"' + (prPage >= pages ? " disabled" : "") + ">Next</button>" +
+        "</div>";
+    }
+
+    return (
+      '<div class="card" id="openPrsCard">' +
+        "<h3><span>Hermes open PRs</span>" +
+          '<span class="count">' + total + "</span></h3>" +
+        body + pager +
+      "</div>"
+    );
+  }
+
+  function render(data) {
+    lastData = data;
+    var needs = data.needs_you || [];
+    var needsHtml = needs.length
+      ? needs.map(renderItem).join("")
+      : '<p class="empty">Nothing needs you on the roadmap.</p>';
+
+    var lan = data.lan_urls || [];
+    var lanCheckin = "";
+    for (var i = 0; i < lan.length; i++) {
+      if (String(lan[i]).indexOf("/checkin") !== -1) { lanCheckin = lan[i]; break; }
+    }
+    if (lanCheckin) {
+      lanFoot.innerHTML =
+        'Phone: <a style="color:var(--accent)" href="' + esc(lanCheckin) + '">' +
+        esc(lanCheckin) + "</a>";
+    }
+
+    root.innerHTML =
+      renderOpenPrs(data) +
+      '<div class="card"><h3><span>Needs you</span>' +
+        '<span class="count">' + needs.length + "</span></h3>" +
+        needsHtml +
+        '<p class="empty" style="margin-top:8px"><a href="/?view=needs_you&phase=active">Full roadmap →</a></p>' +
+      "</div>";
+
+    var prev = document.getElementById("prPrev");
+    var next = document.getElementById("prNext");
+    if (prev) prev.addEventListener("click", function () { prPage -= 1; render(lastData); });
+    if (next) next.addEventListener("click", function () { prPage += 1; render(lastData); });
+  }
+
+  function load(forcePrs) {
+    statusEl.textContent = "Loading…";
+    statusEl.className = "status";
+    var url = forcePrs ? "/api/checkin?refresh=1" : "/api/checkin";
+    fetch(url, { cache: "no-store" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        statusEl.textContent = "Updated " + (data.generated_at || "");
+        if (forcePrs) prPage = 1;
+        render(data);
+      })
+      .catch(function (e) {
+        statusEl.className = "status err";
+        statusEl.textContent = "Failed: " + e.message;
+      });
+  }
+
+  document.getElementById("btnRefresh").addEventListener("click", function () { load(false); });
+  document.getElementById("btnRefreshPrs").addEventListener("click", function () { load(true); });
+  load(false);
+  setInterval(function () { load(false); }, 60 * 1000);
+})();
+</script>
+</body>
+</html>

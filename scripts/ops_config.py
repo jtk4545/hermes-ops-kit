@@ -46,10 +46,31 @@ DEFAULTS: dict[str, Any] = {
         "pm": {"provider": "bonsai-local", "model": "bonsai-27b"},
         "market": {"provider": "bonsai-local", "model": "bonsai-27b"},
         "ops_review": {"provider": "bonsai-local", "model": "bonsai-27b"},
-        "autofix": {"provider": "xai-oauth", "model": "grok-4.5"},
+        "autofix": {"provider": "openai-codex", "model": "gpt-5.6-sol"},
         "executor": {"provider": "xai-oauth", "model": "grok-4.5"},
+        "executor_night": {"provider": "openai-codex", "model": "gpt-5.6-sol"},
+        "ui_live": {"provider": "xai-oauth", "model": "grok-4.5"},
+    },
+    # Optional advanced topology flags (jobs still present in template;
+    # disable unused ones in the live cron registry after render).
+    "features": {
+        "night_executor": True,  # d4execnight
+        "ui_live": True,  # h11uilive23 — needs ui-live-scan.py
+        "gcloud_ops": False,  # h12gcloud0730 — needs SA + gcloud-ops-scan.py
+        "checkin_ui": True,  # /checkin human ritual page
     },
     "tracked_branches": ["main", "trunk", "dev", "qa"],
+    "gcloud": {
+        "enabled": False,
+        "projects": [],
+        "thresholds": {},
+        "billing_account_ids": [],
+        "billing_account_id": "",
+    },
+    "ui_live": {
+        "enabled": False,
+        "local_checks": [],
+    },
 }
 
 
@@ -215,3 +236,15 @@ def sentinel_projects(cfg: dict[str, Any] | None = None) -> dict[str, dict[str, 
                 )
         out[str(name)] = {"path": root / str(rel), "checks": checks}
     return out
+
+
+def gcloud_settings(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+    c = cfg or load_config()
+    raw = c.get("gcloud") or {}
+    return dict(raw) if isinstance(raw, dict) else {}
+
+
+def ui_live_settings(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+    c = cfg or load_config()
+    raw = c.get("ui_live") or {}
+    return dict(raw) if isinstance(raw, dict) else {}

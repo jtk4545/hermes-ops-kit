@@ -1,0 +1,6 @@
+{
+  "HERMES_LIVE_APP_URL": "",
+  "HERMES_LIVE_ADMIN_URL": "",
+  "HERMES_LIVE_SITE_URL": "",
+  "_comment": "Optional live UI base URLs for ui-live-scan.py when HERMES_UI_LIVE_RUN=1. Process/user env vars override these values. Copy to $HERMES_HOME/scripts/live_urls.json and fill in your targets."
+}

@@ -70,11 +70,25 @@ def install_docs() -> None:
         "OPS_MODELS.md",
         "GITHUB_SERVICE_ACCOUNT.md",
         "ARCHITECTURE.md",
+        "GCLOUD_OPS_SETUP.md",
     ):
         src = KIT_ROOT / "docs" / name
         if src.is_file():
             shutil.copy2(src, d / name)
             print(f"wrote {d / name}")
+
+
+def seed_optional_templates(home: Path) -> None:
+    """Copy example JSON templates into HERMES_HOME/scripts/ when missing."""
+    scripts = home / "scripts"
+    scripts.mkdir(parents=True, exist_ok=True)
+    for name in ("gcloud_projects.example.json", "live_urls.example.json"):
+        src = KIT_ROOT / "templates" / name
+        dest = scripts / name
+        if not src.is_file() or dest.exists():
+            continue
+        shutil.copy2(src, dest)
+        print(f"seeded scripts/{name}")
 
 
 def install_config(cfg_path: Path, home: Path) -> Path:
@@ -204,6 +218,7 @@ def main() -> int:
     install_config(cfg_path, home)
     seed_brain(home, force=args.force_brain)
     seed_roadmaps(force=args.force_roadmaps)
+    seed_optional_templates(home)
     install_docs()
 
     os.environ["HERMES_OPS_CONFIG"] = str(home / ("ops-config" + cfg_path.suffix))

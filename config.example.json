@@ -26,11 +26,30 @@
     }
   },
   "tracked_branches": ["main", "trunk", "dev", "qa"],
+  "gcloud": {
+    "enabled": false,
+    "projects": [],
+    "thresholds": {},
+    "billing_account_ids": [],
+    "billing_account_id": ""
+  },
+  "ui_live": {
+    "enabled": false,
+    "local_checks": []
+  },
   "models": {
     "pm": {"provider": "bonsai-local", "model": "bonsai-27b"},
     "market": {"provider": "bonsai-local", "model": "bonsai-27b"},
     "ops_review": {"provider": "bonsai-local", "model": "bonsai-27b"},
-    "autofix": {"provider": "xai-oauth", "model": "grok-4.5"},
-    "executor": {"provider": "xai-oauth", "model": "grok-4.5"}
+    "autofix": {"provider": "openai-codex", "model": "gpt-5.6-sol"},
+    "executor": {"provider": "xai-oauth", "model": "grok-4.5"},
+    "executor_night": {"provider": "openai-codex", "model": "gpt-5.6-sol"},
+    "ui_live": {"provider": "xai-oauth", "model": "grok-4.5"}
+  },
+  "features": {
+    "night_executor": true,
+    "ui_live": true,
+    "gcloud_ops": false,
+    "checkin_ui": true
   }
 }

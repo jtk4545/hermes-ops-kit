@@ -55,6 +55,9 @@ EXPECTATIONS = {
     "g8sync0615": "no_agent; sync HERMES_HOME ↔ ~/.hermes mirrors",
     "g9auditingest": "no_agent; ingest agent cron outputs into AUDIT",
     "g10humanq": "no_agent; Needs-you queue Telegram with exponential backoff; detect releases",
+    # Optional modules (create cron jobs only when enabled in ops-config)
+    "h12gcloud0730": "optional; no_agent GCP read-only scan; PIPELINES/COSTS; no autofix wake",
+    "h11uilive23": "optional; UI/e2e GHA scan; optional local live checks behind HERMES_UI_LIVE_RUN",
 }
 
 

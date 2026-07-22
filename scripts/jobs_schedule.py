@@ -53,6 +53,8 @@ JOB_DESCRIPTIONS: dict[str, str] = {
     "g8sync0615": "Sync scripts, skills, and design docs between HERMES_HOME and ~/.hermes mirrors.",
     "g9auditingest": "Backfill agent cron outputs into AUDIT.jsonl when the model forgot to call ops_audit.",
     "g10humanq": "Needs-you queue: Telegram reminders with exponential backoff; detect UI “release to agent”.",
+    "h12gcloud0730": "Optional GCP read-only ops/cost scan → PIPELINES/COSTS (no autofix wake).",
+    "h11uilive23": "Optional UI/e2e GHA scan; local live checks only when HERMES_UI_LIVE_RUN=1.",
 }
 
 

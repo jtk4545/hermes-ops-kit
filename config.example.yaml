@@ -46,6 +46,43 @@ tracked_branches:
   - dev
   - qa
 
+# Optional: read-only GCP Cloud Run / Functions / billing scan (gcloud-ops-scan.py)
+# See docs/GCLOUD_OPS_SETUP.md. SA key: HERMES_GCLOUD_SA_KEY or $HERMES_HOME/secrets/gcloud-ops.json
+# Also set features.gcloud_ops: true and create cron h12gcloud0730 when ready.
+gcloud:
+  enabled: false
+  projects: [] # [{id, label, region, watch_run_services, enabled}]
+  # projects:
+  #   - id: your-gcp-project-id
+  #     label: example-dev
+  #     region: us-central1
+  #     watch_run_services: []
+  #     enabled: true
+  thresholds: {}
+  # thresholds:
+  #   cloud_run_error_logs_1h: 25
+  #   daily_cost_usd_warn: 50.0
+  billing_account_ids: []
+  billing_account_id: ""
+
+# Optional: UI/e2e GHA scan + config-driven local live checks (ui-live-scan.py)
+# Local runs require HERMES_UI_LIVE_RUN=1; URLs via HERMES_LIVE_* or live_urls.json
+# (separate from models.ui_live provider/model and features.ui_live cron flag)
+ui_live:
+  enabled: false
+  local_checks: []
+  # local_checks:
+  #   - label: example live e2e
+  #     cwd: example-app/frontend
+  #     cmd: ["{npx}", "playwright", "test", "e2e/live.spec.ts"]
+  #     url_env: HERMES_LIVE_APP_URL
+  #     extra_env: {}
+
+# Day/night model ladder (portable design):
+#   Bonsai → PM / market / ops-review
+#   Day Grok → executor (09/11/13/15)
+#   Codex Sol → CI autofix + night executor
+#   Grok → UI live evening scan
 models:
   pm:
     provider: bonsai-local
@@ -57,12 +94,26 @@ models:
     provider: bonsai-local
     model: bonsai-27b
   autofix:
-    provider: xai-oauth
-    model: grok-4.5
+    provider: openai-codex
+    model: gpt-5.6-sol
   executor:
     provider: xai-oauth
     model: grok-4.5
-  # Optional failover for coding jobs (Hermes fallback_providers / second attempt):
-  # executor_failover:
-  #   provider: openai-codex
-  #   model: gpt-5.6-terra
+  executor_night:
+    provider: openai-codex
+    model: gpt-5.6-sol
+  ui_live:
+    provider: xai-oauth
+    model: grok-4.5
+  # Day executor Hermes fallback_providers (in-flight slice only):
+  #   1) xai-oauth / grok-composer-2.5-fast
+  #   2) openai-codex / gpt-5.6-sol
+  # Night executor: empty fallback_providers (hard stop on 429).
+
+# Optional advanced topology — jobs are always in jobs.template.json;
+# disable unused ones in the live cron registry after render.
+features:
+  night_executor: true   # d4execnight (deliver=local, Codex only)
+  ui_live: true          # h11uilive23 — needs ui-live-scan.py
+  gcloud_ops: false      # h12gcloud0730 — needs SA + gcloud-ops-scan.py
+  checkin_ui: true       # http://127.0.0.1:8888/checkin

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Instances</title>
+<style>
+:root{--bg:#0f0f1a;--surface:#1a1a2e;--text:#eee;--muted:#9a9ab0;--accent:#00d2d3;--ok:#51cf66;--warn:#ffd93d;--danger:#ff6b6b;--border:rgba(255,255,255,.1)}
+*{box-sizing:border-box}body{margin:0;padding:20px;background:var(--bg);color:var(--text);font-family:"Segoe UI",system-ui,sans-serif}.wrap{max-width:1280px;margin:auto}header{text-align:center}header h1{margin:.2rem}header p,.muted{color:var(--muted)}nav{display:flex;justify-content:center;gap:8px;margin:14px 0;flex-wrap:wrap}nav a,.btn,select,input,textarea{color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:7px 10px}nav a{text-decoration:none;color:var(--accent)}nav a.active{border-color:var(--accent)}.filters{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}.filters label{display:flex;gap:6px;align-items:center}.summary{margin:8px 0 14px;color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px}.card{background:var(--surface);border:1px solid var(--border);border-left:4px solid var(--muted);border-radius:8px;padding:14px}.card.configured{border-left-color:var(--warn)}.card.verified{border-left-color:var(--ok)}.head{display:flex;justify-content:space-between;gap:8px}.status{font-weight:700;text-transform:uppercase;font-size:.72rem}.unknown .status{color:var(--muted)}.configured .status{color:var(--warn)}.verified .status{color:var(--ok)}.meta{font-size:.85rem;line-height:1.5;margin-top:8px}.links{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.links a{color:var(--accent)}.btn{cursor:pointer}.btn.primary{border-color:var(--accent);color:var(--accent)}dialog{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:10px;max-width:520px;width:calc(100% - 32px)}dialog::backdrop{background:rgba(0,0,0,.7)}form label{display:block;margin:10px 0 4px}form input,form textarea{width:100%}form textarea{min-height:80px}.actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.error{color:var(--danger)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><h1>Product instances</h1><p>Configuration is not health. Only explicit evidence can mark an instance verified.</p></header>
+<nav class="top">
+<a href="/">Roadmap</a><a href="/instances" class="active">Instances</a><a href="/checkin">Check-in</a><a href="/jobs">Jobs</a><a href="/audit">Audit</a>
+</nav>
+<div class="filters">
+<label>Product <select id="productFilter"><option value="">All</option></select></label>
+<label>Environment <select id="environmentFilter"><option value="">All</option><option>local</option><option>dev</option><option>staging</option><option>prod</option></select></label>
+<label>Status <select id="statusFilter"><option value="">All</option><option>unknown</option><option>configured</option><option>verified</option></select></label>
+<button class="btn" id="refreshButton" type="button">Refresh</button>
+</div>
+<div id="summary" class="summary">Loading…</div><div id="error" class="error" role="alert"></div><main id="instanceGrid" class="grid"></main>
+</div>
+<dialog id="verifyDialog">
+<form id="verifyForm">
+<h2>Record manual verification</h2><p id="verifyTarget" class="muted"></p>
+<input id="verifyProduct" type="hidden"><input id="verifyEnvironment" type="hidden">
+<label for="verifyMethod">Method</label><input id="verifyMethod" required placeholder="manual smoke: sign in + create item">
+<label for="verifyEvidence">Evidence URL</label><input id="verifyEvidence" required type="url" placeholder="https://…/run, issue, screenshot, or result">
+<label for="verifyNote">What worked</label><textarea id="verifyNote" required placeholder="Specific capabilities observed; do not include secrets."></textarea>
+<div class="actions"><button class="btn" type="button" id="cancelVerify">Cancel</button><button class="btn primary" type="submit">Save verification</button></div>
+</form>
+</dialog>
+<script>
+const $=id=>document.getElementById(id);let records=[];
+function safeLink(url,label){if(!url)return "";const a=document.createElement("a");a.href=url;a.textContent=label;a.rel="noreferrer";a.target=url.startsWith("http")?"_blank":"_self";return a.outerHTML}
+function text(value){const span=document.createElement("span");span.textContent=value??"";return span.innerHTML}
+function render(){const product=$("productFilter").value,environment=$("environmentFilter").value,status=$("statusFilter").value;const shown=records.filter(i=>(!product||i.product===product)&&(!environment||i.environment===environment)&&(!status||i.status===status));$("summary").textContent=`${shown.length} shown · ${records.filter(i=>i.status==="verified").length} verified · ${records.filter(i=>i.status==="configured").length} configured · ${records.filter(i=>i.status==="unknown").length} unknown`;$("instanceGrid").innerHTML=shown.map(i=>`<article class="card ${text(i.status)}" data-product="${text(i.product)}" data-environment="${text(i.environment)}"><div class="head"><strong>${text(i.product)} / ${text(i.environment)}</strong><span class="status">${text(i.status)}</span></div><div class="meta">${text(i.notes||"No evidence recorded.")}<br>${i.verified_at?`Verified ${text(i.verified_at)} by ${text(i.verified_by||"unknown")} via ${text(i.verified_method||"unspecified")}`:"Not human-verified."}</div><div class="links">${safeLink(i.url,"Open instance")}${safeLink(i.runbook_url,"Runbook")}${safeLink(i.evidence_url,"Evidence")}</div><button class="btn primary verify" type="button" data-product="${text(i.product)}" data-environment="${text(i.environment)}">Record verification</button></article>`).join("")||'<p class="muted">No matching instances.</p>';document.querySelectorAll("button.verify").forEach(button=>button.addEventListener("click",()=>openVerify(button.dataset.product,button.dataset.environment)))}
+async function load(){try{$("error").textContent="";const response=await fetch("/api/instances",{cache:"no-store"});if(!response.ok)throw new Error(`HTTP ${response.status}`);const payload=await response.json();records=payload.instances||[];const selected=$("productFilter").value;const products=[...new Set(records.map(i=>i.product))].sort();$("productFilter").innerHTML='<option value="">All</option>'+products.map(p=>`<option>${text(p)}</option>`).join("");$("productFilter").value=products.includes(selected)?selected:"";render()}catch(error){$("error").textContent=`Could not load inventory: ${error.message}`}}
+function openVerify(product,environment){$("verifyProduct").value=product;$("verifyEnvironment").value=environment;$("verifyTarget").textContent=`${product} / ${environment}`;$("verifyDialog").showModal()}
+$("verifyForm").addEventListener("submit",async event=>{event.preventDefault();const body={product:$("verifyProduct").value,environment:$("verifyEnvironment").value,method:$("verifyMethod").value,evidence_url:$("verifyEvidence").value,note:$("verifyNote").value};const response=await fetch("/api/instances/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const payload=await response.json();if(!response.ok){$("error").textContent=payload.error||`HTTP ${response.status}`;return}$("verifyDialog").close();$("verifyForm").reset();records=payload.instances;render()});
+$("cancelVerify").addEventListener("click",()=>$("verifyDialog").close());["productFilter","environmentFilter","statusFilter"].forEach(id=>$(id).addEventListener("change",render));$("refreshButton").addEventListener("click",load);load();
+</script>
+</body>
+</html>

@@ -28,12 +28,13 @@ STATE_FILE = BRAIN_DIR / "AUDIT_INGESTED.json"
 # Agent (or hybrid) jobs — script-only jobs already call append_event themselves
 INGEST_JOB_IDS = {
     "026c0a4c82b7",  # CI scan + autofix agent response
+    "h11uilive23",  # UI live scan gate (may wake autofix)
     "c3pm0930",  # PM
     "d4exec1014",  # executor
     "e5market184",  # market
     "f6ops2100",  # daily ops review agent (digest script also audits)
 }
-EXECUTOR_JOB_IDS = {"d4exec1014"}
+EXECUTOR_JOB_IDS = {"d4exec1014", "d4execnight"}
 
 
 def _parse_iso(value: str | None) -> datetime | None:

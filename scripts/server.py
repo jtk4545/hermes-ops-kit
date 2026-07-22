@@ -22,7 +22,12 @@ ROADMAP_FILE = roadmap_file()
 HERMES_HOME = hermes_home()
 BRAIN_DIR = brain_dir()
 AUDIT_JSONL = BRAIN_DIR / "AUDIT.jsonl"
+_env_registry = os.environ.get("HERMES_INSTANCE_REGISTRY", "").strip()
+INSTANCE_REGISTRY_FILE = (
+    Path(_env_registry).expanduser() if _env_registry else SCRIPTS_DIR / "instances.json"
+)
 PHASES = ["In Progress", "Upcoming", "Backlog", "Done"]
+# Default localhost-only for kit safety. LAN: HERMES_UI_HOST=0.0.0.0 (no auth — trusted network only).
 BIND_HOST = os.environ.get("HERMES_UI_HOST", "127.0.0.1")
 JOB_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 _job_run_request_lock = threading.Lock()
@@ -63,8 +68,13 @@ def _job_status(job_id: str) -> dict:
 
 def _queue_job_for_next_tick(job_id: str) -> dict | None:
     """Queue through Hermes; never execute an agent inside the HTTP request."""
-    from cron.jobs import trigger_job
-
+    try:
+        from cron.jobs import trigger_job
+    except ImportError as exc:
+        raise RuntimeError(
+            "cron.jobs.trigger_job unavailable — run inside a Hermes install "
+            "with the cron package on PYTHONPATH"
+        ) from exc
     return trigger_job(job_id)
 
 
@@ -116,6 +126,39 @@ def ensure_roadmap() -> dict:
     return data
 
 
+def validate_roadmap_done_transitions(previous: dict, incoming: dict) -> None:
+    """Require an explicit instance-impact acknowledgment for newly Done items."""
+    if not isinstance(incoming, dict):
+        raise ValueError("Roadmap payload must be an object")
+    previously_done = {
+        (project, item.get("name"))
+        for project, phases in previous.items()
+        if isinstance(phases, dict)
+        for item in phases.get("Done", [])
+        if isinstance(item, dict)
+    }
+    allowed = {"no impact", "added", "changed", "removed"}
+    for project, phases in incoming.items():
+        if not isinstance(phases, dict):
+            raise ValueError(f"Invalid phases for project {project}")
+        for item in phases.get("Done", []):
+            if not isinstance(item, dict):
+                raise ValueError(f"Invalid Done item for project {project}")
+            identity = (project, item.get("name"))
+            if identity in previously_done:
+                continue
+            impact = str(item.get("instance_impact", "")).strip().lower()
+            if impact not in allowed:
+                raise ValueError(
+                    f"Instance impact is required before Done: {project} / {item.get('name', 'unnamed')}"
+                )
+            if impact != "no impact" and not str(item.get("instance_evidence", "")).strip():
+                raise ValueError(
+                    f"Instance evidence is required for impact '{impact}': "
+                    f"{project} / {item.get('name', 'unnamed')}"
+                )
+
+
 def load_audit_events(limit: int = 500) -> list[dict]:
     if not AUDIT_JSONL.is_file():
         return []
@@ -133,6 +176,12 @@ def load_audit_events(limit: int = 500) -> list[dict]:
         except json.JSONDecodeError:
             continue
     return events
+
+
+def load_instances_payload() -> dict:
+    from instances_registry import load_instance_registry
+
+    return load_instance_registry(INSTANCE_REGISTRY_FILE)
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -170,6 +219,9 @@ class Handler(SimpleHTTPRequestHandler):
                 }
             )
             return
+        if path in ("/api/instances", "/instances.json"):
+            self._send_json(load_instances_payload())
+            return
         if path in ("/api/jobs", "/jobs.json"):
             import importlib
 
@@ -205,16 +257,68 @@ class Handler(SimpleHTTPRequestHandler):
             importlib.reload(jobs_schedule)
             self._send_json(jobs_schedule.graph_payload())
             return
+        if path in ("/api/checkin", "/checkin.json"):
+            import importlib
+
+            import checkin
+
+            importlib.reload(checkin)
+            qs = parse_qs(parsed.query or "")
+            refresh = (qs.get("refresh") or ["0"])[0].lower() in ("1", "true", "yes")
+            self._send_json(checkin.checkin_payload(refresh_prs=refresh))
+            return
+        if path in ("/api/open-prs", "/open-prs.json"):
+            import importlib
+
+            import checkin
+
+            importlib.reload(checkin)
+            qs = parse_qs(parsed.query or "")
+            refresh = (qs.get("refresh") or ["0"])[0].lower() in ("1", "true", "yes")
+            self._send_json(checkin.load_open_prs(force_refresh=refresh))
+            return
         if path in ("/", "/index.html"):
             self.path = "/roadmap.html"
+        elif path in ("/instances", "/instances.html"):
+            self.path = "/instances.html"
         elif path in ("/jobs", "/jobs.html"):
             self.path = "/jobs.html"
         elif path in ("/audit", "/audit.html"):
             self.path = "/audit.html"
+        elif path in ("/checkin", "/checkin.html"):
+            self.path = "/checkin.html"
         return super().do_GET()
 
     def do_POST(self):
         path = urlparse(self.path).path
+        if path == "/api/instances/verify":
+            length = int(self.headers.get("Content-Length", 0))
+            if length <= 0 or length > 65536:
+                self._send_json({"ok": False, "error": "invalid request size"}, 400)
+                return
+            try:
+                body = json.loads(self.rfile.read(length).decode("utf-8"))
+                if not isinstance(body, dict):
+                    raise ValueError("JSON body must be an object")
+                from instances_registry import record_instance_verification
+
+                payload = record_instance_verification(
+                    INSTANCE_REGISTRY_FILE,
+                    product=body.get("product", ""),
+                    environment=body.get("environment", ""),
+                    method=body.get("method", ""),
+                    evidence_url=body.get("evidence_url", ""),
+                    note=body.get("note", ""),
+                    actor="human",
+                )
+                self._send_json({"ok": True, **payload})
+            except KeyError as exc:
+                self._send_json({"ok": False, "error": str(exc)}, 404)
+            except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+                self._send_json({"ok": False, "error": str(exc)}, 400)
+            except OSError as exc:
+                self._send_json({"ok": False, "error": str(exc)}, 500)
+            return
         match = re.fullmatch(r"/api/jobs/([^/]+)/run", path)
         if match:
             job_id = unquote(match.group(1))
@@ -238,6 +342,7 @@ class Handler(SimpleHTTPRequestHandler):
             if not isinstance(data, dict):
                 raise ValueError("Roadmap payload must be an object")
             previous = ensure_roadmap()
+            validate_roadmap_done_transitions(previous, data)
             reconcile_update(previous, data, actor="human-ui")
         except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
             self._send_json({"ok": False, "error": str(exc)}, 400)
@@ -263,8 +368,22 @@ if __name__ == "__main__":
     ensure_roadmap()
     print(f"Roadmap SoT: {ROADMAP_FILE}")
     print(f"Audit JSONL: {AUDIT_JSONL}")
+    print(f"Instances:   {INSTANCE_REGISTRY_FILE}")
     print(f"Jobs file:   {HERMES_HOME / 'cron' / 'jobs.json'}")
+    print(f"Bind:        {BIND_HOST}:{PORT}")
     print(f"Roadmap UI:  http://127.0.0.1:{PORT}/")
+    print(f"Check-in:    http://127.0.0.1:{PORT}/checkin")
+    print(f"Instances:   http://127.0.0.1:{PORT}/instances")
     print(f"Jobs UI:     http://127.0.0.1:{PORT}/jobs")
     print(f"Audit UI:    http://127.0.0.1:{PORT}/audit")
+    if BIND_HOST in ("0.0.0.0", "::"):
+        print(
+            "Note: bound on all interfaces (no auth). "
+            "Use only on a trusted LAN. Default kit bind is 127.0.0.1."
+        )
+    else:
+        print(
+            "Note: localhost-only bind. For LAN access set HERMES_UI_HOST=0.0.0.0 "
+            "(no auth — trusted network only)."
+        )
     ThreadingHTTPServer((BIND_HOST, PORT), Handler).serve_forever()

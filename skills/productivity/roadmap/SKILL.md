@@ -1,7 +1,7 @@
 ---
 name: roadmap
 description: Use when viewing or changing the multi-project roadmap (In Progress/Upcoming/Backlog/Done). Classify each task as owner=agent or owner=human; escalate blocked human work to Telegram with exact actions.
-version: 1.2.0
+version: 1.3.0
 author: Hermes Ops
 license: MIT
 metadata:
@@ -15,7 +15,10 @@ metadata:
 **Source of truth:** `~/.hermes/roadmaps.json`  
 **CLI:** `python "$HERMES_HOME/scripts/roadmap_cli.py"` (or `~/.hermes/scripts/…` for interactive)  
 **UI:** `python "$HERMES_HOME/scripts/server.py"` → http://127.0.0.1:8888/  
+**Check-in ritual:** http://127.0.0.1:8888/checkin — open bot PRs + Needs you (when `features.checkin_ui`)  
 **Human queue formatter:** `python "$HERMES_HOME/scripts/human_block_format.py"`
+
+Eligible executors: day `d4exec1014` (09/11/13/15) and optional night `d4execnight` (22:00–04:30, `deliver=local`). Release blocked items in the UI so either instance can resume.
 
 ## Owner classification (required)
 

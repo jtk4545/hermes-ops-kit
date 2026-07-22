@@ -63,10 +63,16 @@ def placeholders(cfg: dict[str, Any]) -> dict[str, str]:
         "{{PROVIDER_MARKET}}": m("market", "provider", "bonsai-local"),
         "{{MODEL_OPS_REVIEW}}": m("ops_review", "model", "bonsai-27b"),
         "{{PROVIDER_OPS_REVIEW}}": m("ops_review", "provider", "bonsai-local"),
-        "{{MODEL_AUTOFIX}}": m("autofix", "model", "grok-4.5"),
-        "{{PROVIDER_AUTOFIX}}": m("autofix", "provider", "xai-oauth"),
+        "{{MODEL_AUTOFIX}}": m("autofix", "model", "gpt-5.6-sol"),
+        "{{PROVIDER_AUTOFIX}}": m("autofix", "provider", "openai-codex"),
         "{{MODEL_EXECUTOR}}": m("executor", "model", "grok-4.5"),
         "{{PROVIDER_EXECUTOR}}": m("executor", "provider", "xai-oauth"),
+        "{{MODEL_EXECUTOR_NIGHT}}": m("executor_night", "model", "gpt-5.6-sol"),
+        "{{PROVIDER_EXECUTOR_NIGHT}}": m(
+            "executor_night", "provider", "openai-codex"
+        ),
+        "{{MODEL_UI_LIVE}}": m("ui_live", "model", "grok-4.5"),
+        "{{PROVIDER_UI_LIVE}}": m("ui_live", "provider", "xai-oauth"),
     }
 
 

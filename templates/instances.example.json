@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "instances": [
+    {
+      "product": "example-app",
+      "environment": "local",
+      "status": "unknown",
+      "url": null,
+      "runbook_url": null,
+      "capabilities": [],
+      "owner": null,
+      "evidence_url": null,
+      "verified_at": null,
+      "verified_method": null,
+      "verified_by": null,
+      "notes": "Example inventory row. Copy to $HERMES_HOME/scripts/instances.json (or set HERMES_INSTANCE_REGISTRY) and customize. Configuration is not health — only explicit evidence marks verified."
+    },
+    {
+      "product": "example-app",
+      "environment": "dev",
+      "status": "configured",
+      "url": "https://example.invalid/app",
+      "runbook_url": null,
+      "capabilities": ["ui"],
+      "owner": null,
+      "evidence_url": null,
+      "verified_at": null,
+      "verified_method": null,
+      "verified_by": null,
+      "notes": "Configured target only; reachability and product behavior are not verified."
+    }
+  ]
+}

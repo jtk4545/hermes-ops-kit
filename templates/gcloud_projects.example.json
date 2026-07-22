@@ -1,0 +1,19 @@
+{
+  "projects": [
+    {
+      "id": "your-gcp-project-id",
+      "label": "example-dev",
+      "region": "us-central1",
+      "watch_run_services": [],
+      "enabled": true
+    }
+  ],
+  "billing_account_ids": [],
+  "billing_account_id": "",
+  "thresholds": {
+    "cloud_run_5xx_rate_pct": 5.0,
+    "cloud_run_error_logs_1h": 25,
+    "daily_cost_usd_warn": 50.0
+  },
+  "_comment": "Copy to $HERMES_HOME/scripts/gcloud_projects.json (or set gcloud.projects in ops-config). Never commit real billing account IDs or secrets."
+}
