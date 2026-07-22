@@ -4,6 +4,11 @@
 
 timezone: America/Chicago
 ui_port: 8888
+notify_window:
+  weekdays: [0, 1, 2, 3, 4] # Monday=0
+  start: "09:00"
+  end: "17:00"
+  always_allow_jobs: [f6ops2100] # daily report
 
 # Root folder that contains your local product checkouts
 projects_root: /path/to/your/projects

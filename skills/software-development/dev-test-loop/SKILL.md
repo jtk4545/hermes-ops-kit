@@ -89,7 +89,7 @@ Stop and escalate when you hit any gate below. Use skill `human-approval`.
 
 ## After implementation
 
-1. Open PR with label **`hermes-exec`**; link roadmap item name in body. Prefer bot identity via `HERMES_GH_TOKEN` (see `~/.hermes/GITHUB_SERVICE_ACCOUNT.md`).
+1. Open PR through `python "$HERMES_HOME/scripts/gh_ops.py" create-pr ... --label hermes-exec` so every PR carries a `model:<model-id>` label and `Hermes-Model` body footer. Link the roadmap item in the body. Prefer bot identity via `HERMES_GH_TOKEN` (see `~/.hermes/GITHUB_SERVICE_ACCOUNT.md`).
 2. **Merge policy (default: auto when green):**
    - **Safe / no approval gate:** after opening PR, run  
      `gh pr merge <n> --repo <owner/repo> --auto --squash --delete-branch`  

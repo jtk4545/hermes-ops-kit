@@ -399,7 +399,7 @@ tr.off td { opacity: .45; }
 
     var h = "<div class=\"table-wrap\"><table><thead><tr>" +
       "<th>Job</th><th>What it does</th><th>Mode</th><th>Schedule</th><th>Model</th>" +
-      "<th>Next run</th><th>Last</th><th>Status</th>" +
+      "<th>Next run</th><th>Last</th><th>Status</th><th>Action</th>" +
       "</tr></thead><tbody>";
 
     rows.forEach(function (j) {
@@ -421,6 +421,11 @@ tr.off td { opacity: .45; }
         "<td>" + esc(fmtWhen(j.last_run_at)) + "</td>" +
         "<td class=\"" + stCls + "\">" + esc(st) +
           (j.last_error ? "<div class=\"mono\">" + esc(j.last_error).slice(0, 120) + "</div>" : "") +
+        "</td><td>" +
+          (j.running ? "<span class=\"mono\">running</span>" :
+            (j.queued ? "<span class=\"mono\">queued</span>" :
+              (j.can_run ? "<button type=\"button\" class=\"btn\" data-run-job=\"" + esc(j.id) + "\">Run once</button>" :
+                "<span class=\"mono\">unavailable</span>"))) +
         "</td></tr>";
     });
     h += "</tbody></table></div>";
@@ -646,6 +651,26 @@ tr.off td { opacity: .45; }
     renderRegistry();
   }
 
+  async function runJobOnce(jobId, button) {
+    if (!confirm("Queue " + jobId + " for the next scheduler tick?")) return;
+    button.disabled = true;
+    button.textContent = "Queuing…";
+    try {
+      var response = await fetch("/api/jobs/" + encodeURIComponent(jobId) + "/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+      var payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || ("HTTP " + response.status));
+      setStatus(payload.message || ("Queued " + jobId), "ok");
+      await loadJobs();
+    } catch (error) {
+      setStatus("Could not queue " + jobId + ": " + (error.message || error), "err");
+      button.disabled = false;
+      button.textContent = "Run once";
+    }
+  }
+
   async function loadTimeline() {
     setStatus("Loading timeline…");
     var hours = document.getElementById("tHours").value;
@@ -676,6 +701,11 @@ tr.off td { opacity: .45; }
     document.getElementById(id).addEventListener("change", renderRegistry);
   });
   document.getElementById("rQ").addEventListener("input", renderRegistry);
+  document.getElementById("registry").addEventListener("click", function (event) {
+    var button = event.target.closest("button[data-run-job]");
+    if (!button) return;
+    runJobOnce(button.getAttribute("data-run-job"), button);
+  });
   document.getElementById("btnRefresh").addEventListener("click", function () {
     loadJobs().catch(function (e) { setStatus(String(e.message || e), "err"); });
   });

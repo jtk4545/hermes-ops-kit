@@ -66,6 +66,8 @@ Executor marks Done when merged (or auto-merge queued, checks not red). Prod/bre
 
 **GitHub identity:** prefer a dedicated bot via `HERMES_GH_TOKEN` (see `GITHUB_SERVICE_ACCOUNT.md`). Until set, ambient `gh` login is used.
 
+**Model attribution:** executor/autofix create PRs through `gh_ops.py create-pr`, which adds `model:<model-id>` and a `Hermes-Model` footer while preserving `hermes-exec` / `hermes-autofix`.
+
 ---
 
 ## Model routing
@@ -144,7 +146,7 @@ python "$HERMES_HOME/scripts/ops_audit.py" day-summary
 
 1. **Script jobs** call `ops_audit.py` themselves.
 2. **Agent jobs** are prompted to append (with structured flags) and to **read** `recent` / blocked first.
-3. **`audit_ingest_cron.py`** (`g9auditingest` */10; also from digest) backfills forgotten agent runs as `[auto-ingest]` (dedupe: `brain/AUDIT_INGESTED.json`). Pulls repo/PR/gate from response text when present.
+3. **`audit_ingest_cron.py`** (`g9auditingest` */10; also from digest) backfills forgotten agent runs as `[auto-ingest]` (dedupe: `brain/AUDIT_INGESTED.json`). It ignores prompt-only/interrupted output and reconciles executor scheduler completions that produced no final response.
 
 **Read paths:** Daily digest leads with **Audit day scorecard**; daily review grades from it; UI at http://127.0.0.1:8888/audit. Noisy watchdogs skip audit when nothing changed.
 
@@ -154,9 +156,10 @@ python "$HERMES_HOME/scripts/ops_audit.py" day-summary
 
 - SoT: `~/.hermes/roadmaps.json`
 - CLI: `roadmap_cli.py`; skill: `roadmap`
-- Fields: `owner` (`agent`|`human`), `human_actions`, `blocked`, `blocked_reason` (`ACTION:` / `APPROVAL:`), **`notes`** (structured item context)
+- Fields: `owner` (`agent`|`human`), `human_actions`, `blocked`, `blocked_reason` (`ACTION:` / `APPROVAL:`), **`notes`** (structured item context), stable `id`, timestamps, `activity`, and typed `related_items`
 - UI on port **8888** (or `ui_port` in config): filter/sort + **Needs you** panel (reason + numbered steps + **release to agent**)
 - **Item context:** agent-owned work needs structured `--notes` (Why / Scope / Acceptance / Context / Out of scope). Titles stay short; detail lives in notes. See roadmap skill.
+- **History/relationships:** CLI and UI writes preserve immutable IDs and append activity; use `roadmap_cli.py log` and `relate` for progress and dependencies.
 - **Populate on escalate:** PM/executor/autofix must set owner=human, blocked=true, ACTION/APPROVAL reason, and 3–6 short `human_actions` (never empty)
 - **Watch:** `human_queue_watch.py` (`g10humanq` */15) Telegram-reminds with exponential backoff (immediate → 30m → 1h → 2h → 4h → 8h → 24h) until released; one RESOLVED ping when cleared; state in `brain/HUMAN_QUEUE_STATE.json`
 - Release in UI → `owner=agent` `blocked=false` → next executor resumes

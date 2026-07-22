@@ -70,6 +70,7 @@ Usage:
 - `python ai-pr-fixer.py --auto` — create PRs and monitor checks
 
 ## Pitfalls
+- Create PRs through `python "$HERMES_HOME/scripts/gh_ops.py" create-pr ... --label hermes-autofix`, not bare `gh pr create`. This adds the model attribution label/footer and preserves the role label.
 - Local repos may have SSH remotes (`git@github.com:...`). The script needs to parse both HTTPS and SSH URLs to detect the owner/repo.
 - The `gh` CLI needs `--repo` flag for `gh run list`. Without it, `gh` uses the current repo context which may not be set.
 - If a PR fails to create (auth issue, repo not found), the script should report the failure and continue.

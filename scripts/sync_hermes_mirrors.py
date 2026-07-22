@@ -28,6 +28,7 @@ MIRROR_PATHS = [
     "scripts/roadmap.html",
     "scripts/server.py",
     "scripts/roadmap_cli.py",
+    "scripts/roadmap_history.py",
     "scripts/gh_ops.py",
     "scripts/pr-monitor.py",
     "scripts/pipeline-scan.py",

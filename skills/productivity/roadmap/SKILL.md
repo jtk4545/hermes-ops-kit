@@ -31,6 +31,8 @@ Fields on every item:
 - `blocked`: true when work cannot proceed without the human
 - `blocked_reason`: one-line why
 - `notes`: **required context** for agent work (see below) — titles stay short; detail lives here
+- `id`, `created_at`, `updated_at`, `activity`: stable identity and append-only item history
+- `related_items`: typed links (`blocks`, `parent of`, `depends on`, `related`, etc.)
 - `priority`, `date`, `tags`
 
 ## Item context (`--notes`) — required
@@ -60,6 +62,8 @@ python "$HERMES_HOME/scripts/roadmap_cli.py" show
 python "$HERMES_HOME/scripts/roadmap_cli.py" add -p example-app -i "Ship feature X" --phase Upcoming --priority 1 --owner agent --tags core --notes "Why: Users cannot export. Scope: export/*.py. Acceptance: unit tests for CSV; smoke green. Context: parent reporting epic. Out of scope: PDF."
 python "$HERMES_HOME/scripts/roadmap_cli.py" add -p example-app -i "Enable billing" --phase Upcoming --priority 1 --owner human --blocked true --blocked-reason "ACTION: Needs billing admin" --human-actions "Open billing console|Attach project|Reply done" --notes "Why: Deploy blocked without billing. Scope: cloud project. Acceptance: billing account linked. Context: blocks feature X. Out of scope: budget alerts."
 python "$HERMES_HOME/scripts/roadmap_cli.py" edit -p example-app -i "Ship feature X" --notes "Why: … Scope: … Acceptance: … Context: … Out of scope: …"
+python "$HERMES_HOME/scripts/roadmap_cli.py" log -p example-app -i "Ship feature X" --kind progress --message "Tests now pass"
+python "$HERMES_HOME/scripts/roadmap_cli.py" relate -p example-app -i "Ship feature X" --related-item "Enable billing" --relation "blocked by"
 python "$HERMES_HOME/scripts/human_block_format.py"
 ```
 
@@ -79,6 +83,7 @@ When you **create or refresh** a HITL gate (`owner=human` active or `blocked=tru
 3. Executor may **decompose** large items into prioritized children (`add` + `--priority` + full `--notes`) and must add **follow-ups** it discovers at end of a run.
 4. Mid-loop human gates use skill `human-approval` (`ACTION:` vs `APPROVAL:` in `blocked_reason`).
 5. Persist intent to brain (`PRODUCTS` / `DECISIONS`) when priorities change.
+6. Use `log` for durable progress/stops and `relate` for dependencies; do not hand-edit IDs or activity history.
 
 ## Completion criteria
 

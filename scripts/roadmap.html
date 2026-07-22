@@ -326,6 +326,15 @@ tr.needs-you td { background: rgba(255,169,77,.06); }
   </div>
 </div>
 
+<div id="hm" class="mod" aria-hidden="true">
+  <div class="md">
+    <h2 id="hmtitle">Item history</h2>
+    <div id="hmrelations"></div>
+    <div id="hmactivity"></div>
+    <div class="fa"><button type="button" class="btn" id="btnHistoryClose">Close</button></div>
+  </div>
+</div>
+
 <script>
 (function () {
   "use strict";
@@ -580,6 +589,8 @@ tr.needs-you td { background: rgba(255,169,77,.06); }
         h += "<button type=\"button\" class=\"btn btn-ok\" data-approve=\"" + esc(key) +
           "\">Approved — release to agent</button>";
       }
+      h += "<button type=\"button\" class=\"btn\" data-history=\"" + esc(key) + "\">History (" +
+        (item.activity || []).length + ")</button>";
       h += "<button type=\"button\" class=\"btn\" data-edit=\"" + esc(key) + "\">Edit</button>";
       h += "</div>";
       h += "<p class=\"after\">After release: next executor run (weekdays 10:00 / 14:00) can finish the item. " +
@@ -648,6 +659,8 @@ tr.needs-you td { background: rgba(255,169,77,.06); }
         "<td class=\"row-actions\">" +
           (ny ? "<button type=\"button\" class=\"btn btn-ok\" data-resolve=\"" + esc(key) +
             "\">Release</button>" : "") +
+          "<button type=\"button\" class=\"btn\" data-history=\"" + esc(key) + "\">History (" +
+            (item.activity || []).length + ")</button>" +
           "<button type=\"button\" class=\"btn\" data-edit=\"" + esc(key) + "\">Edit</button>" +
           "<button type=\"button\" class=\"btn btn-danger\" data-del=\"" + esc(key) + "\">Del</button>" +
         "</td></tr>";
@@ -697,6 +710,41 @@ tr.needs-you td { background: rgba(255,169,77,.06); }
       });
     });
     return { item: item, phase: phFound };
+  }
+
+  function findById(id) {
+    var rows = allRows();
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].item.id === id) return rows[i];
+    }
+    return null;
+  }
+
+  function openHistory(proj, name) {
+    var found = findItem(proj, name);
+    if (!found.item) return;
+    var item = found.item;
+    document.getElementById("hmtitle").textContent = proj + " / " + item.name;
+    var relations = (item.related_items || []).map(function (relation) {
+      var targetRow = findById(relation.id);
+      var target = targetRow ? targetRow.proj + "::" + targetRow.item.name : relation.id;
+      return "<li>" + esc(relation.relation || "related") + " → " + esc(target) + "</li>";
+    }).join("");
+    document.getElementById("hmrelations").innerHTML = relations
+      ? "<strong>Related items</strong><ul>" + relations + "</ul>"
+      : "<p class=\"hq-meta\">No related items.</p>";
+    var events = (item.activity || []).slice().reverse();
+    document.getElementById("hmactivity").innerHTML = events.length
+      ? events.map(function (event) {
+          return "<article class=\"hq-card\"><div class=\"hq-meta\">" +
+            esc(event.timestamp || "unknown time") + " · " + esc(event.kind || "update") +
+            " · " + esc(event.actor || "unknown") + "</div><p>" +
+            esc(event.summary || "") + "</p>" +
+            (event.details ? "<p class=\"hq-meta\">" + esc(event.details) + "</p>" : "") +
+            "</article>";
+        }).join("")
+      : "<div class=\"hq-empty\">No history entries yet.</div>";
+    openModal("hm");
   }
 
   function removeItem(proj, name) {
@@ -767,6 +815,7 @@ tr.needs-you td { background: rgba(255,169,77,.06); }
   });
   document.getElementById("btnAddCancel").addEventListener("click", function () { closeModal("am"); });
   document.getElementById("btnEditCancel").addEventListener("click", function () { closeModal("em"); });
+  document.getElementById("btnHistoryClose").addEventListener("click", function () { closeModal("hm"); });
 
   document.getElementById("btnAddSave").addEventListener("click", async function () {
     var proj = document.getElementById("ap").value;
@@ -800,9 +849,10 @@ tr.needs-you td { background: rgba(255,169,77,.06); }
     var orig = document.getElementById("eorig").value;
     var nm = document.getElementById("en").value.trim();
     if (!nm) return alert("Name is required");
+    var original = findItem(proj, orig).item || {};
     removeItem(proj, orig);
     var ph = document.getElementById("eap2").value;
-    S[proj][ph].push({
+    S[proj][ph].push(Object.assign({}, original, {
       name: nm,
       date: document.getElementById("ed").value || "",
       notes: document.getElementById("enot").value || "",
@@ -812,7 +862,7 @@ tr.needs-you td { background: rgba(255,169,77,.06); }
       human_actions: document.getElementById("eha").value.split(/\r?\n/).map(function (x) { return x.trim(); }).filter(Boolean),
       blocked: document.getElementById("eb").value === "true",
       blocked_reason: document.getElementById("ebr").value || ""
-    });
+    }));
     try {
       await saveToAll();
       closeModal("em");
@@ -847,8 +897,14 @@ tr.needs-you td { background: rgba(255,169,77,.06); }
   function onActionClick(ev) {
     var resolve = ev.target.closest("button[data-resolve]");
     var approve = ev.target.closest("button[data-approve]");
+    var history = ev.target.closest("button[data-history]");
     var edit = ev.target.closest("button[data-edit]");
     var del = ev.target.closest("button[data-del]");
+    if (history) {
+      var hk = parseKey(history.getAttribute("data-history"));
+      openHistory(hk.proj, hk.name);
+      return;
+    }
     if (resolve) {
       var rk = parseKey(resolve.getAttribute("data-resolve"));
       if (!confirm("Mark \"" + rk.name + "\" done on your side and release to the agent?\n\nThis clears blocked and sets owner=agent.")) return;

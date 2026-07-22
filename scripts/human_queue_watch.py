@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from human_block_format import collect, format_item, kind_of  # noqa: E402
 from ops_audit import append_event  # noqa: E402
 from brain_paths import BRAIN_DIR  # noqa: E402
-from weekend_policy import is_weekend  # noqa: E402
+from weekend_policy import in_notify_window, next_notify_window_start  # noqa: E402
 
 TZ = ZoneInfo(_tz_name())
 STATE_FILE = BRAIN_DIR / "HUMAN_QUEUE_STATE.json"
@@ -123,7 +123,7 @@ def main() -> int:
     args = ap.parse_args()
 
     now = _now()
-    weekend = is_weekend(now)
+    notify_ok = in_notify_window(now)
     state = load_state()
     open_items: dict = state.setdefault("items", {})
     resolved_log: dict = state.setdefault("resolved", {})
@@ -182,14 +182,11 @@ def main() -> int:
         if not due:
             continue
 
-        # Weekends: track queue + resolutions, but do not Telegram-nag humans
-        if weekend and not args.force:
+        # Outside the configured window: track, but do not consume backoff.
+        if not notify_ok and not args.force:
             if not args.dry_run:
-                # Push next attempt to Monday morning-ish without counting as a ping
-                entry["next_alert_at"] = (
-                    now + timedelta(hours=12)
-                ).isoformat()
-                entry["weekend_suppressed"] = True
+                entry["next_alert_at"] = next_notify_window_start(now).isoformat()
+                entry["window_suppressed"] = True
             continue
 
         count = int(entry.get("alert_count") or 0)
@@ -202,6 +199,7 @@ def main() -> int:
             entry["alert_count"] = count + 1
             entry["last_alert_at"] = now.isoformat()
             entry["next_alert_at"] = (now + timedelta(minutes=next_wait)).isoformat()
+            entry.pop("window_suppressed", None)
             entry.pop("weekend_suppressed", None)
 
     # Prune old resolved log (keep 60 days)

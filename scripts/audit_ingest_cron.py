@@ -13,13 +13,13 @@ from __future__ import annotations
 import json
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from brain_paths import BRAIN_DIR, HERMES_HOME  # noqa: E402
-from ops_audit import append_event  # noqa: E402
+from ops_audit import append_event, load_events  # noqa: E402
 
 OUTPUT_ROOT = HERMES_HOME / "cron" / "output"
 JOBS_FILE = HERMES_HOME / "cron" / "jobs.json"
@@ -33,6 +33,76 @@ INGEST_JOB_IDS = {
     "e5market184",  # market
     "f6ops2100",  # daily ops review agent (digest script also audits)
 }
+EXECUTOR_JOB_IDS = {"d4exec1014"}
+
+
+def _parse_iso(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+
+
+def _registry_status(job: dict) -> str:
+    raw = str(job.get("last_status") or "").lower()
+    if raw in {"ok", "silent", "partial", "blocked", "error"}:
+        return raw
+    if job.get("last_error") or raw in {"failed", "interrupted"}:
+        return "error"
+    return "partial"
+
+
+def reconcile_executor_runs(
+    jobs_by_id: dict,
+    state: dict,
+    events: list[dict],
+    append_fn=append_event,
+) -> int:
+    """Guarantee an audit record when an executor produced no final response."""
+    completed = state.setdefault("executor_last_runs", {})
+    appended = 0
+    for job_id in sorted(EXECUTOR_JOB_IDS):
+        job = jobs_by_id.get(job_id) or {}
+        run_raw = job.get("last_run_at")
+        run_at = _parse_iso(run_raw)
+        if not run_at or completed.get(job_id) == run_raw:
+            continue
+        previous_at = _parse_iso(completed.get(job_id))
+        lower = previous_at or (run_at - timedelta(hours=2))
+        upper = run_at + timedelta(minutes=5)
+        covered = any(
+            event.get("job_id") == job_id
+            and (event_at := _parse_iso(event.get("ts"))) is not None
+            and lower < event_at <= upper
+            for event in events
+        )
+        if not covered:
+            raw_status = str(job.get("last_status") or "unknown")
+            detail = [
+                f"scheduler last_status={raw_status}",
+                f"last_run_at={run_raw}",
+            ]
+            if job.get("last_error"):
+                detail.append(f"last_error={job['last_error']}")
+            if job.get("last_delivery_error"):
+                detail.append(f"last_delivery_error={job['last_delivery_error']}")
+            append_fn(
+                job_id=job_id,
+                name=job.get("name") or job_id,
+                status=_registry_status(job),
+                summary="[registry-reconcile] Executor run had no direct/output audit event",
+                detail="\n".join(detail),
+                extra={
+                    "source": "cron_registry_reconcile",
+                    "last_run_at": run_raw,
+                    "last_status": raw_status,
+                },
+            )
+            appended += 1
+        completed[job_id] = run_raw
+    return appended
 
 
 def load_state() -> dict:
@@ -78,11 +148,12 @@ def infer_status(response: str, job_meta: dict | None) -> str:
     low = response.lower()
     if response.strip() == "[SILENT]" or low.strip() == "[silent]":
         return "silent"
-    if "action needed" in low or "approval needed" in low or "blocked" in low:
+    if re.search(
+        r"(?im)^\s*(?:[-*]\s*)?(?:ACTION|APPROVAL)(?:\s+NEEDED)?\s*:",
+        response,
+    ):
         return "blocked"
     if "traceback" in low or "error:" in low[:500]:
-        return "error"
-    if job_meta and job_meta.get("last_status") == "error":
         return "error"
     if "partial" in low or "halted" in low:
         return "partial"
@@ -186,14 +257,18 @@ def main() -> int:
                 text = path.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
+            # Prompt-only/interrupted artifacts contain policy words such as
+            # ACTION, blocked, and error; never infer an outcome from them.
+            if "## Response" not in text:
+                seen[key] = {
+                    "skipped": "missing_response",
+                    "at": datetime.now().isoformat(),
+                }
+                continue
             response = extract_response(text)
             if not response:
                 seen[key] = {"skipped": "empty", "at": datetime.now().isoformat()}
                 continue
-            # Skip pure skill-dump with no real response marker and huge prompt-only
-            if "## Response" not in text and "no_agent" not in text.lower():
-                # still try — extract_response may have fallback
-                pass
             if response.strip() == "[SILENT]":
                 status = "silent"
                 summary = "Agent returned [SILENT]"
@@ -230,6 +305,7 @@ def main() -> int:
             }
             ingested += 1
 
+    ingested += reconcile_executor_runs(jobs_by_id, state, load_events())
     save_state(state)
     # Silent always — audit trail is the record; no Telegram for routine ingest
     return 0

@@ -5,21 +5,27 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
+import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 from hermes_paths import brain_dir, hermes_home, roadmap_file  # noqa: E402
+from roadmap_history import normalize_roadmap, reconcile_update  # noqa: E402
 
 ROADMAP_FILE = roadmap_file()
 HERMES_HOME = hermes_home()
 BRAIN_DIR = brain_dir()
 AUDIT_JSONL = BRAIN_DIR / "AUDIT.jsonl"
 PHASES = ["In Progress", "Upcoming", "Backlog", "Done"]
+BIND_HOST = os.environ.get("HERMES_UI_HOST", "127.0.0.1")
+JOB_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
+_job_run_request_lock = threading.Lock()
 try:
     from ops_config import product_names, load_config
 
@@ -28,6 +34,61 @@ try:
 except Exception:
     DEFAULT_PROJECTS = ["example-app"]
     PORT = 8888
+
+
+class JobRunConflict(RuntimeError):
+    pass
+
+
+class JobRunNotFound(LookupError):
+    pass
+
+
+def _job_status(job_id: str) -> dict:
+    import importlib
+
+    import jobs_schedule
+
+    importlib.reload(jobs_schedule)
+    for job in jobs_schedule.jobs_payload()["jobs"]:
+        if str(job.get("id")) == job_id:
+            return {
+                "exists": True,
+                "enabled": bool(job.get("enabled")),
+                "running": bool(job.get("running")),
+                "queued": bool(job.get("queued")),
+            }
+    return {"exists": False, "enabled": False, "running": False, "queued": False}
+
+
+def _queue_job_for_next_tick(job_id: str) -> dict | None:
+    """Queue through Hermes; never execute an agent inside the HTTP request."""
+    from cron.jobs import trigger_job
+
+    return trigger_job(job_id)
+
+
+def trigger_job_once(job_id: str) -> dict:
+    if not JOB_ID_RE.fullmatch(job_id or ""):
+        raise JobRunNotFound("Job not found")
+    with _job_run_request_lock:
+        status = _job_status(job_id)
+        if not status["exists"]:
+            raise JobRunNotFound("Job not found")
+        if not status["enabled"]:
+            raise JobRunConflict("Job is disabled")
+        if status["running"]:
+            raise JobRunConflict("Job is already running")
+        if status["queued"]:
+            raise JobRunConflict("Job is already queued")
+        if not _queue_job_for_next_tick(job_id):
+            raise JobRunNotFound("Job not found")
+        return {
+            "ok": True,
+            "job_id": job_id,
+            "state": "queued",
+            "message": "Queued for the next scheduler tick",
+        }
 
 
 def ensure_roadmap() -> dict:
@@ -45,6 +106,8 @@ def ensure_roadmap() -> dict:
                 if phase not in data[name]:
                     data[name][phase] = []
                     changed = True
+    if normalize_roadmap(data):
+        changed = True
     if changed or not ROADMAP_FILE.exists():
         ROADMAP_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(ROADMAP_FILE, "w", encoding="utf-8") as f:
@@ -152,13 +215,33 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         path = urlparse(self.path).path
+        match = re.fullmatch(r"/api/jobs/([^/]+)/run", path)
+        if match:
+            job_id = unquote(match.group(1))
+            try:
+                self._send_json(trigger_job_once(job_id), 202)
+            except JobRunNotFound as exc:
+                self._send_json({"ok": False, "error": str(exc)}, 404)
+            except JobRunConflict as exc:
+                self._send_json({"ok": False, "error": str(exc)}, 409)
+            except (ImportError, RuntimeError, OSError) as exc:
+                self._send_json({"ok": False, "error": str(exc)}, 503)
+            return
         if path not in ("/roadmap.json", "/roadmaps.json"):
             self.send_response(405)
             self.end_headers()
             return
         length = int(self.headers.get("Content-Length", 0))
-        raw = self.rfile.read(length)
-        data = json.loads(raw.decode("utf-8"))
+        try:
+            raw = self.rfile.read(length)
+            data = json.loads(raw.decode("utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError("Roadmap payload must be an object")
+            previous = ensure_roadmap()
+            reconcile_update(previous, data, actor="human-ui")
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+            self._send_json({"ok": False, "error": str(exc)}, 400)
+            return
         ROADMAP_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(ROADMAP_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
@@ -184,4 +267,4 @@ if __name__ == "__main__":
     print(f"Roadmap UI:  http://127.0.0.1:{PORT}/")
     print(f"Jobs UI:     http://127.0.0.1:{PORT}/jobs")
     print(f"Audit UI:    http://127.0.0.1:{PORT}/audit")
-    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
+    ThreadingHTTPServer((BIND_HOST, PORT), Handler).serve_forever()

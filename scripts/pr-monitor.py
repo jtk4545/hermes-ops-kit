@@ -57,16 +57,16 @@ def main() -> int:
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     actor = whoami()
     try:
-        from weekend_policy import is_weekend
+        from weekend_policy import in_notify_window
 
-        weekend = is_weekend()
+        notify_allowed = in_notify_window()
     except Exception:
-        weekend = False
+        notify_allowed = True
     alerts: list[str] = []
     lines = [
         f"Updated: {stamp}",
         f"gh identity: {actor} (token={token_src or 'gh login'})",
-        f"weekend_no_hitl={weekend}",
+        f"telegram_notify_window={notify_allowed}",
         "",
     ]
 
@@ -106,9 +106,9 @@ def main() -> int:
             if status == "pass":
                 if approval:
                     lines.append(f"  - HOLD for human: {why}")
-                    if weekend:
+                    if not notify_allowed:
                         lines.append(
-                            "  - weekend: APPROVAL Telegram suppressed (defer HITL to weekday)"
+                            "  - outside notify window: APPROVAL Telegram suppressed"
                         )
                     else:
                         alerts.append(
@@ -149,23 +149,28 @@ def main() -> int:
     _atomic_write(pipe, updated)
 
     if not alerts:
-        return 0  # silent — skip audit when nothing happened
-    print("PR monitor alerts")
-    for a in alerts:
-        print(f"- {a}")
+        return 0
     try:
         from ops_audit import append_event
 
         append_event(
             job_id="b2prmon30m",
             name="PR monitor",
-            status="ok",
-            summary=f"{len(alerts)} alert(s) (merge/hold/red)",
+            status="ok" if notify_allowed else "silent",
+            summary=(
+                f"{len(alerts)} alert(s) (merge/hold/red); "
+                f"telegram={'sent' if notify_allowed else 'suppressed'}"
+            ),
             detail="\n".join(alerts[:12]),
             artifacts=[str(BRAIN_DIR / "PIPELINES.md")],
         )
     except Exception as exc:
         print(f"audit skipped: {exc}", file=sys.stderr)
+    if not notify_allowed:
+        return 0
+    print("PR monitor alerts")
+    for alert in alerts:
+        print(f"- {alert}")
     return 0
 
 

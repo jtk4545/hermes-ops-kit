@@ -8,6 +8,12 @@ import json
 import os
 import sys
 
+from roadmap_history import (
+    append_activity,
+    normalize_item as normalize_history_item,
+    relate_items,
+)
+
 ROADMAP_FILE = os.path.expanduser("~/.hermes/roadmaps.json")
 PHASES = ["In Progress", "Upcoming", "Backlog", "Done"]
 OWNERS = ("agent", "human")
@@ -18,8 +24,8 @@ except Exception:
     DEFAULT_PROJECTS = ['example-app']
 
 
-def normalize_item(item: dict) -> bool:
-    """Ensure owner/human fields exist. Returns True if mutated."""
+def normalize_item(item: dict, *, history_migration: bool = True) -> bool:
+    """Ensure owner, human, identity, history, and relationship fields exist."""
     changed = False
     if "owner" not in item or item.get("owner") not in OWNERS:
         item["owner"] = "agent"
@@ -35,6 +41,8 @@ def normalize_item(item: dict) -> bool:
         changed = True
     if "blocked_reason" not in item:
         item["blocked_reason"] = ""
+        changed = True
+    if normalize_history_item(item, migration_event=history_migration):
         changed = True
     return changed
 
@@ -132,7 +140,8 @@ def add_item(d, name, item):
     phase = item.pop("phase", "Backlog")
     if phase not in d[name]:
         d[name][phase] = []
-    normalize_item(item)
+    normalize_item(item, history_migration=False)
+    append_activity(item, "Item created", kind="created", actor="agent")
     d[name][phase].append(item)
     save(d)
     print(f"  Added: {item['name']} → {name}/{phase} owner={item['owner']}")
@@ -171,6 +180,7 @@ def move_item(d, name, item_name, new_phase):
         return
     d[name][phase].pop(idx)
     d[name][new_phase].append(item)
+    append_activity(item, f"phase: {phase} → {new_phase}", kind="moved", actor="agent")
     save(d)
     print(f"  Moved: {item_name} → {name}/{new_phase}")
 
@@ -190,12 +200,47 @@ def edit_item(d, name, item_name, **changes):
     if item is None:
         print(f"  Item '{item_name}' not found in {name}")
         return
+    differences = []
     for k, v in changes.items():
         if v is not None:
+            if item.get(k) != v:
+                differences.append(f"{k}: {item.get(k)!r} → {v!r}")
             item[k] = v
     normalize_item(item)
+    if differences:
+        append_activity(item, "; ".join(differences), kind="updated", actor="agent")
     save(d)
     print(f"  Updated: {item_name} in {name}/{phase} owner={item.get('owner')}")
+
+
+def log_item(d, name, item_name, message, kind="progress", actor="agent"):
+    phase, _idx, item = find_item(d, name, item_name)
+    if item is None:
+        print(f"  Item '{item_name}' not found in {name}", file=sys.stderr)
+        return False
+    append_activity(item, message, kind=kind, actor=actor)
+    save(d)
+    print(f"  Logged: {item_name} in {name}/{phase}")
+    return True
+
+
+def relate_item(d, name, item_name, related_project, related_item, relation, actor="agent"):
+    try:
+        relate_items(
+            d,
+            name,
+            item_name,
+            related_project,
+            related_item,
+            relation=relation,
+            actor=actor,
+        )
+    except (KeyError, ValueError) as exc:
+        print(f"  {exc}", file=sys.stderr)
+        return False
+    save(d)
+    print(f"  Related: {name}/{item_name} {relation} {related_project}/{related_item}")
+    return True
 
 
 def stats(d):
@@ -227,7 +272,7 @@ def main():
     p = argparse.ArgumentParser(description="Roadmap CLI")
     p.add_argument(
         "cmd",
-        choices=["add", "list", "show", "move", "remove", "edit", "stats"],
+        choices=["add", "list", "show", "move", "remove", "edit", "log", "relate", "stats"],
         help="Command",
     )
     p.add_argument("--project", "-p", help="Project name")
@@ -245,13 +290,23 @@ def main():
     )
     p.add_argument("--blocked", choices=["true", "false"], help="Mark item blocked")
     p.add_argument("--blocked-reason", help="Why work is waiting on a human")
+    p.add_argument("--message", help="Activity message for log")
+    p.add_argument("--kind", default="progress", help="Activity kind for log")
+    p.add_argument("--actor", default="agent", help="Activity actor")
+    p.add_argument("--related-project", help="Project containing the related item")
+    p.add_argument("--related-item", help="Related item name or id")
+    p.add_argument(
+        "--relation",
+        default="related",
+        help="Relationship, e.g. blocks, parent of, depends on",
+    )
     args = p.parse_args()
     d = load()
 
-    if args.cmd in ("add", "move", "remove", "edit") and not args.project:
+    if args.cmd in ("add", "move", "remove", "edit", "log", "relate") and not args.project:
         print("  --project is required for this command", file=sys.stderr)
         sys.exit(2)
-    if args.cmd in ("add", "move", "remove", "edit") and not args.item:
+    if args.cmd in ("add", "move", "remove", "edit", "log", "relate") and not args.item:
         print("  --item is required for this command", file=sys.stderr)
         sys.exit(2)
 
@@ -304,6 +359,24 @@ def main():
         if args.blocked_reason is not None:
             edits["blocked_reason"] = args.blocked_reason
         edit_item(d, args.project, args.item, **edits)
+    elif args.cmd == "log":
+        if not args.message:
+            p.error("--message is required for log")
+        if not log_item(d, args.project, args.item, args.message, args.kind, args.actor):
+            sys.exit(1)
+    elif args.cmd == "relate":
+        if not args.related_item:
+            p.error("--related-item is required for relate")
+        if not relate_item(
+            d,
+            args.project,
+            args.item,
+            args.related_project or args.project,
+            args.related_item,
+            args.relation,
+            args.actor,
+        ):
+            sys.exit(1)
     elif args.cmd == "stats":
         stats(d)
 

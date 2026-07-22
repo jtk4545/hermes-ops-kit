@@ -18,6 +18,12 @@ from typing import Any
 DEFAULTS: dict[str, Any] = {
     "timezone": "America/Chicago",
     "ui_port": 8888,
+    "notify_window": {
+        "weekdays": [0, 1, 2, 3, 4],
+        "start": "09:00",
+        "end": "17:00",
+        "always_allow_jobs": ["f6ops2100"],
+    },
     "projects_root": "",
     "github": {
         "org": "your-org",
@@ -178,6 +184,10 @@ def product_names(cfg: dict[str, Any] | None = None) -> list[str]:
 
 def timezone_name(cfg: dict[str, Any] | None = None) -> str:
     return str((cfg or load_config()).get("timezone") or "America/Chicago")
+
+
+def notify_window(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
+    return dict((cfg or load_config()).get("notify_window") or {})
 
 
 def projects_root(cfg: dict[str, Any] | None = None) -> Path:

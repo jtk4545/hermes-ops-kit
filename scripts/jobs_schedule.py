@@ -5,6 +5,9 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import sqlite3
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -28,6 +31,10 @@ except Exception:
 
 HERMES_HOME = hermes_home()
 JOBS_FILE = HERMES_HOME / "cron" / "jobs.json"
+RUNNING_JOBS_FILE = HERMES_HOME / "cron" / "running_jobs.json"
+STATE_DB = HERMES_HOME / "state.db"
+ACTIVE_SESSION_LOOKBACK_SECONDS = 3 * 60 * 60
+ACTIVE_SESSION_ACTIVITY_SECONDS = 15 * 60
 
 # Timeline noise by default (still shown in registry). Includes */5…*/30.
 FREQUENT_THRESH_MINUTES = 30
@@ -105,6 +112,122 @@ def load_jobs_raw() -> list[dict]:
     return list(data.get("jobs") or [])
 
 
+def _pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+def _snapshot_running_job_ids() -> set[str]:
+    try:
+        payload = json.loads(RUNNING_JOBS_FILE.read_text(encoding="utf-8"))
+        pid = int(payload.get("pid") or 0)
+        ids = payload.get("job_ids") or []
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return set()
+    if not _pid_alive(pid):
+        return set()
+    return {str(job_id) for job_id in ids if job_id}
+
+
+def _active_session_job_ids() -> set[str]:
+    """Compatibility fallback for gateways without running_jobs.json."""
+    if not STATE_DB.is_file():
+        return set()
+    now = time.time()
+    ids: set[str] = set()
+    try:
+        con = sqlite3.connect(
+            f"file:{STATE_DB.as_posix()}?mode=ro",
+            uri=True,
+            timeout=1,
+        )
+        try:
+            rows = con.execute(
+                """
+                select s.id
+                from sessions s
+                where s.source='cron'
+                  and s.ended_at is null
+                  and s.started_at >= ?
+                  and coalesce(
+                        (select max(m.timestamp) from messages m where m.session_id=s.id),
+                        s.started_at
+                      ) >= ?
+                """,
+                (
+                    now - ACTIVE_SESSION_LOOKBACK_SECONDS,
+                    now - ACTIVE_SESSION_ACTIVITY_SECONDS,
+                ),
+            )
+            for (session_id,) in rows:
+                match = re.fullmatch(
+                    r"cron_(.+)_\d{8}_\d{6}",
+                    str(session_id or ""),
+                )
+                if match:
+                    ids.add(match.group(1))
+        finally:
+            con.close()
+    except (OSError, sqlite3.Error):
+        return set()
+    return ids
+
+
+def _running_script_job_ids(raw_jobs: list[dict]) -> set[str]:
+    scripts = {
+        str(job.get("id")): Path(str(job.get("script"))).name.lower()
+        for job in raw_jobs
+        if job.get("script")
+    }
+    if not scripts:
+        return set()
+    try:
+        import psutil
+    except ImportError:
+        return set()
+    running: set[str] = set()
+    try:
+        for process in psutil.process_iter(["cmdline"]):
+            command = " ".join(process.info.get("cmdline") or []).lower()
+            for job_id, script_name in scripts.items():
+                if script_name and script_name in command:
+                    running.add(job_id)
+    except (OSError, RuntimeError):
+        pass
+    return running
+
+
+def running_job_ids() -> set[str]:
+    raw_jobs = load_jobs_raw()
+    return (
+        _snapshot_running_job_ids()
+        | _active_session_job_ids()
+        | _running_script_job_ids(raw_jobs)
+    )
+
+
+def _is_due_now(job: dict, *, now: datetime | None = None) -> bool:
+    if not job.get("enabled", True) or not job.get("next_run_at"):
+        return False
+    try:
+        due = datetime.fromisoformat(str(job["next_run_at"]).replace("Z", "+00:00"))
+        current = now or _now()
+        if due.tzinfo is None:
+            due = due.replace(tzinfo=TZ)
+        return due <= current.astimezone(TZ)
+    except (TypeError, ValueError):
+        return False
+
+
 def job_description(job: dict) -> str:
     jid = str(job.get("id") or "")
     if jid in JOB_DESCRIPTIONS:
@@ -175,7 +298,18 @@ def expand_fires(
 
 
 def jobs_payload() -> dict:
-    jobs = [job_public(j) for j in load_jobs_raw()]
+    raw_jobs = load_jobs_raw()
+    running = running_job_ids()
+    now = _now()
+    jobs = []
+    for raw in raw_jobs:
+        public = job_public(raw)
+        public["running"] = str(public.get("id")) in running
+        public["queued"] = not public["running"] and _is_due_now(raw, now=now)
+        public["can_run"] = bool(
+            public["enabled"] and not public["running"] and not public["queued"]
+        )
+        jobs.append(public)
     jobs.sort(key=lambda j: (not j["enabled"], j.get("schedule_expr") or "", j["name"] or ""))
     return {
         "generated_at": _now().isoformat(),
