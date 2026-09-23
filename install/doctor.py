@@ -143,6 +143,26 @@ def main() -> int:
     else:
         warn("no generated CREATE_JOBS.md — run install.py without --skip-jobs")
 
+    if cfg:
+        try:
+            sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+            from ops_config import AGENT_MODEL_ROLES, resolve_model, load_config
+
+            loaded = load_config()
+            pinned = [
+                role
+                for role in AGENT_MODEL_ROLES
+                if resolve_model(loaded, role)["model"]
+            ]
+            if pinned:
+                ok("models pinned for: " + ", ".join(pinned))
+            else:
+                warn(
+                    "no models.default or per-part overrides — agent jobs use Hermes' current default"
+                )
+        except Exception as exc:
+            warn(f"could not inspect models config ({exc})")
+
     print()
     if failures:
         print(f"{failures} failure(s)")

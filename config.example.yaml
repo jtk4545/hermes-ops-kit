@@ -78,41 +78,34 @@ ui_live:
   #     url_env: HERMES_LIVE_APP_URL
   #     extra_env: {}
 
-# Day/night model ladder (current design):
-#   qwen-gpu (optional SSH tunnel) → Grok 4.6 backup → PM / market / ops-review
-#   Day executor: hourly 09:00–17:00 weekdays, Grok 4.6 → Codex Sol
-#   Night executor: every 30m 00:00–04:00, Grok 4.6 → Codex Sol, deliver=local
-#   CI autofix: Grok 4.6 → Codex Sol
-#   Bonsai local: disabled (do not auto-start)
-models:
-  pm:
-    provider: qwen-gpu
-    model: qwen3.6-ops
-  market:
-    provider: qwen-gpu
-    model: qwen3.6-ops
-  ops_review:
-    provider: qwen-gpu
-    model: qwen3.6-ops
-  autofix:
-    provider: xai-oauth
-    model: grok-4.6
-  executor:
-    provider: xai-oauth
-    model: grok-4.6
-  executor_night:
-    provider: xai-oauth
-    model: grok-4.6
-  ui_live:
-    provider: xai-oauth
-    model: grok-4.6
-  # Coding fallback (in-flight slice only): openai-codex / gpt-5.6-sol
-  # Dual-quota hard stop if Grok and Codex are both exhausted.
+# Models are optional. Omit this block to use Hermes' current default model
+# for every agent job. Set `default` once, then override only the parts you want.
+#
+#   hermes auth list     # provider ids
+#   hermes model         # configured models
+#
+# models:
+#   default:
+#     provider: your-provider
+#     model: your-model
+#     fallback:                 # optional; in-flight slice only
+#       provider: other-provider
+#       model: other-model
+#   pm:
+#     provider: cheap-provider
+#     model: cheap-model
+#   market: {}                  # inherit default
+#   ops_review: {}
+#   autofix: {}
+#   executor: {}
+#   executor_night: {}
+#   ui_live: {}
+models: {}
 
 # Optional advanced topology — jobs are always in jobs.template.json;
 # disable unused ones in the live cron registry after render.
 features:
-  night_executor: true   # d4execnight (deliver=local, Codex only)
+  night_executor: true   # d4execnight (deliver=local)
   ui_live: true          # h11uilive23 — needs ui-live-scan.py
   gcloud_ops: false      # h12gcloud0730 — needs SA + gcloud-ops-scan.py
   checkin_ui: true       # http://127.0.0.1:8888/checkin

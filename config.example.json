@@ -37,15 +37,7 @@
     "enabled": false,
     "local_checks": []
   },
-  "models": {
-    "pm": {"provider": "qwen-gpu", "model": "qwen3.6-ops"},
-    "market": {"provider": "qwen-gpu", "model": "qwen3.6-ops"},
-    "ops_review": {"provider": "qwen-gpu", "model": "qwen3.6-ops"},
-    "autofix": {"provider": "xai-oauth", "model": "grok-4.6"},
-    "executor": {"provider": "xai-oauth", "model": "grok-4.6"},
-    "executor_night": {"provider": "xai-oauth", "model": "grok-4.6"},
-    "ui_live": {"provider": "xai-oauth", "model": "grok-4.6"}
-  },
+  "models": {},
   "features": {
     "night_executor": true,
     "ui_live": true,

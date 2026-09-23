@@ -42,15 +42,9 @@ DEFAULTS: dict[str, Any] = {
             "checks": [["Compile check", ["echo", "configure me"]]],
         }
     },
-    "models": {
-        "pm": {"provider": "bonsai-local", "model": "bonsai-27b"},
-        "market": {"provider": "bonsai-local", "model": "bonsai-27b"},
-        "ops_review": {"provider": "bonsai-local", "model": "bonsai-27b"},
-        "autofix": {"provider": "openai-codex", "model": "gpt-5.6-sol"},
-        "executor": {"provider": "xai-oauth", "model": "grok-4.6"},
-        "executor_night": {"provider": "openai-codex", "model": "gpt-5.6-sol"},
-        "ui_live": {"provider": "xai-oauth", "model": "grok-4.6"},
-    },
+    # Empty on purpose: agent jobs inherit Hermes' current model unless
+    # ops-config.yaml sets models.default and/or per-part overrides.
+    "models": {},
     # Optional advanced topology flags (jobs still present in template;
     # disable unused ones in the live cron registry after render).
     "features": {
@@ -252,3 +246,76 @@ def ui_live_settings(cfg: dict[str, Any] | None = None) -> dict[str, Any]:
     c = cfg or load_config()
     raw = c.get("ui_live") or {}
     return dict(raw) if isinstance(raw, dict) else {}
+
+
+AGENT_MODEL_ROLES = (
+    "pm",
+    "market",
+    "ops_review",
+    "autofix",
+    "executor",
+    "executor_night",
+    "ui_live",
+)
+
+JOB_MODEL_ROLES = {
+    "026c0a4c82b7": "autofix",
+    "c3pm0930": "pm",
+    "d4exec1014": "executor",
+    "d4execnight": "executor_night",
+    "e5market184": "market",
+    "f6ops2100": "ops_review",
+    "h11uilive23": "ui_live",
+}
+
+
+def _provider_model(block: Any) -> tuple[str, str]:
+    if not isinstance(block, dict):
+        return "", ""
+    return str(block.get("provider") or "").strip(), str(block.get("model") or "").strip()
+
+
+def resolve_model(cfg: dict[str, Any] | None, role: str) -> dict[str, str]:
+    """Resolve provider/model for one agent part.
+
+    Omitted parts inherit ``models.default``. Omitted ``models`` entirely
+    leaves provider/model empty so Hermes uses its current default.
+    Optional ``fallback: {provider, model}`` on the part or on default.
+    """
+    c = cfg or load_config()
+    models = c.get("models") or {}
+    if not isinstance(models, dict):
+        models = {}
+    default = models.get("default") if isinstance(models.get("default"), dict) else {}
+    part = models.get(role) if role != "default" and isinstance(models.get(role), dict) else {}
+
+    d_provider, d_model = _provider_model(default)
+    p_provider, p_model = _provider_model(part)
+    provider = p_provider or d_provider
+    model = p_model or d_model
+
+    fallback_block: Any = None
+    if part.get("fallback"):
+        fallback_block = part.get("fallback")
+    elif default.get("fallback"):
+        fallback_block = default.get("fallback")
+    f_provider, f_model = _provider_model(fallback_block)
+
+    if f_provider and f_model:
+        fallback_line = (
+            f"Fallback (in-flight slice only): {f_provider} / {f_model}. "
+            "Never start a new item under a fallback."
+        )
+    else:
+        fallback_line = (
+            "No fallback configured — stop on 429/quota/auth. "
+            "Do not invent another provider."
+        )
+
+    return {
+        "provider": provider,
+        "model": model,
+        "fallback_provider": f_provider,
+        "fallback_model": f_model,
+        "fallback_line": fallback_line,
+    }

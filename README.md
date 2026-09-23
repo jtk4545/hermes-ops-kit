@@ -45,15 +45,15 @@ You still own secrets, prod consoles, and anything labeled `owner=human`. The ag
 
 ## 10-minute setup
 
-Requires: Hermes on PATH, gateway running, Python 3.11+, `gh` auth. Coding jobs also need `hermes auth add xai-oauth` (and usually `openai-codex`).
+Requires: Hermes on PATH, gateway running, Python 3.11+, `gh` auth. Agent jobs use whatever model you already run in Hermes unless you set `models:` in config.
 
 ```bash
 git clone https://github.com/jtk4545/hermes-ops-kit.git
 cd hermes-ops-kit
 
 cp config.example.yaml ops-config.yaml
-# edit four things: github.org, github.repos, products, timezone
-# then models.* if your provider IDs differ
+# edit: github.org, github.repos, products, timezone
+# models are optional — see Configure below
 
 python install/install.py --config ops-config.yaml
 python install/doctor.py
@@ -113,18 +113,26 @@ Telegram policy is the same three buckets as the table at the top: failure, huma
 
 Start from [config.example.yaml](config.example.yaml).
 
+### Pick models per part
+
+Leave `models: {}` to use Hermes' current default everywhere. Or set `default`, then override only the jobs that should differ (`pm`, `market`, `ops_review`, `autofix`, `executor`, `executor_night`, `ui_live`). Each may take an optional `fallback`. Details: [docs/OPS_MODELS.md](docs/OPS_MODELS.md).
+
 | Key | Why it matters |
 |-----|----------------|
 | `github.org` / `github.repos` | CI scan + PR monitor targets |
 | `products` | Roadmap / UI keys |
 | `projects` | Local sentinel health checks |
 | `timezone` | Weekend HITL defer + notify window |
-| `models.*` | Provider/model IDs for agent jobs |
+| `models.default` | Optional. One provider/model for every agent job |
+| `models.pm` / `market` / `ops_review` / `autofix` / `executor` / `executor_night` / `ui_live` | Optional overrides for that part only |
+| `models.*.fallback` | Optional in-flight-slice fallback for that part |
 | `features.*` | Night executor, UI-live, GCP scan, check-in |
+
+Omit `models` (or leave `models: {}`) to use Hermes' current default for every agent job. Set `default` once, then override only the parts that should differ. `hermes auth list` is the source of provider ids.
 
 Env: `HERMES_HOME`, `HERMES_BRAIN_DIR`, `HERMES_PROJECTS_ROOT`, `HERMES_OPS_CONFIG`, `HERMES_GH_TOKEN`, `HERMES_OPS_TIMEZONE`.
 
-Cheap PM/market model over SSH: [docs/REMOTE_QWEN_GPU.md](docs/REMOTE_QWEN_GPU.md). GitHub bot token: [docs/GITHUB_SERVICE_ACCOUNT.md](docs/GITHUB_SERVICE_ACCOUNT.md).
+Cheap remote model over SSH (optional): [docs/REMOTE_QWEN_GPU.md](docs/REMOTE_QWEN_GPU.md). GitHub bot token: [docs/GITHUB_SERVICE_ACCOUNT.md](docs/GITHUB_SERVICE_ACCOUNT.md).
 
 **Not shipped:** live brain content, cron history, tokens, product secrets.
 

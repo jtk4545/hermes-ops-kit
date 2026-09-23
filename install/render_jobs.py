@@ -37,19 +37,14 @@ def hermes_home() -> Path:
 
 def placeholders(cfg: dict[str, Any]) -> dict[str, str]:
     from hermes_paths import dot_hermes
+    from ops_config import AGENT_MODEL_ROLES, resolve_model
 
     home = hermes_home()
     home_posix = home.as_posix()
-    models = cfg.get("models") or {}
-
-    def m(key: str, field: str, default: str) -> str:
-        block = models.get(key) or {}
-        return str(block.get(field) or default)
-
     projects_root = Path(
         cfg.get("projects_root") or os.environ.get("HERMES_PROJECTS_ROOT") or Path.home()
     )
-    return {
+    mapping: dict[str, str] = {
         "{{HERMES_HOME}}": str(home),
         "{{HERMES_HOME_POSIX}}": home_posix,
         "{{DOT_HERMES}}": str(dot_hermes()),
@@ -57,23 +52,29 @@ def placeholders(cfg: dict[str, Any]) -> dict[str, str]:
         "{{GITHUB_ORG}}": str((cfg.get("github") or {}).get("org") or "your-org"),
         "{{HERMES_PROJECTS_ROOT}}": str(projects_root),
         "{{HERMES_PROJECTS_ROOT_POSIX}}": projects_root.as_posix(),
-        "{{MODEL_PM}}": m("pm", "model", "bonsai-27b"),
-        "{{PROVIDER_PM}}": m("pm", "provider", "bonsai-local"),
-        "{{MODEL_MARKET}}": m("market", "model", "bonsai-27b"),
-        "{{PROVIDER_MARKET}}": m("market", "provider", "bonsai-local"),
-        "{{MODEL_OPS_REVIEW}}": m("ops_review", "model", "bonsai-27b"),
-        "{{PROVIDER_OPS_REVIEW}}": m("ops_review", "provider", "bonsai-local"),
-        "{{MODEL_AUTOFIX}}": m("autofix", "model", "gpt-5.6-sol"),
-        "{{PROVIDER_AUTOFIX}}": m("autofix", "provider", "openai-codex"),
-        "{{MODEL_EXECUTOR}}": m("executor", "model", "grok-4.5"),
-        "{{PROVIDER_EXECUTOR}}": m("executor", "provider", "xai-oauth"),
-        "{{MODEL_EXECUTOR_NIGHT}}": m("executor_night", "model", "gpt-5.6-sol"),
-        "{{PROVIDER_EXECUTOR_NIGHT}}": m(
-            "executor_night", "provider", "openai-codex"
-        ),
-        "{{MODEL_UI_LIVE}}": m("ui_live", "model", "grok-4.5"),
-        "{{PROVIDER_UI_LIVE}}": m("ui_live", "provider", "xai-oauth"),
     }
+    role_token = {
+        "pm": "PM",
+        "market": "MARKET",
+        "ops_review": "OPS_REVIEW",
+        "autofix": "AUTOFIX",
+        "executor": "EXECUTOR",
+        "executor_night": "EXECUTOR_NIGHT",
+        "ui_live": "UI_LIVE",
+    }
+    for role in AGENT_MODEL_ROLES:
+        resolved = resolve_model(cfg, role)
+        token = role_token[role]
+
+        def ph(name: str) -> str:
+            return "{{" + name + "}}"
+
+        mapping[ph(f"MODEL_{token}")] = resolved["model"]
+        mapping[ph(f"PROVIDER_{token}")] = resolved["provider"]
+        mapping[ph(f"{token}_FALLBACK_LINE")] = resolved["fallback_line"]
+        mapping[ph(f"MODEL_{token}_FALLBACK")] = resolved["fallback_model"]
+        mapping[ph(f"PROVIDER_{token}_FALLBACK")] = resolved["fallback_provider"]
+    return mapping
 
 
 def render_value(value: Any, mapping: dict[str, str]) -> Any:
@@ -94,9 +95,40 @@ def load_template() -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def apply_job_models(rendered: dict[str, Any], cfg: dict[str, Any]) -> dict[str, Any]:
+    """Pin or clear model/provider/fallback_providers from optional config."""
+    from ops_config import JOB_MODEL_ROLES, resolve_model
+
+    jobs = rendered.get("jobs") or []
+    for job in jobs:
+        if not isinstance(job, dict) or job.get("no_agent"):
+            continue
+        role = JOB_MODEL_ROLES.get(str(job.get("id") or ""))
+        if not role:
+            continue
+        resolved = resolve_model(cfg, role)
+        if resolved["provider"] and resolved["model"]:
+            job["model"] = resolved["model"]
+            job["provider"] = resolved["provider"]
+        else:
+            job.pop("model", None)
+            job.pop("provider", None)
+        if resolved["fallback_provider"] and resolved["fallback_model"]:
+            job["fallback_providers"] = [
+                {
+                    "provider": resolved["fallback_provider"],
+                    "model": resolved["fallback_model"],
+                }
+            ]
+        elif "fallback_providers" in job:
+            job["fallback_providers"] = []
+    return rendered
+
+
 def render(cfg: dict[str, Any]) -> dict[str, Any]:
     mapping = placeholders(cfg)
-    return render_value(load_template(), mapping)
+    rendered = render_value(load_template(), mapping)
+    return apply_job_models(rendered, cfg)
 
 
 def print_create_commands(rendered: dict[str, Any], scripts_dir: Path) -> None:

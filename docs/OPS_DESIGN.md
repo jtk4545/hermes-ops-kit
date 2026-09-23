@@ -74,30 +74,23 @@ Executor marks Done when merged (or auto-merge queued, checks not red). Prod/bre
 
 ---
 
-## Model routing (day / night ladder)
+## Model routing
 
-See `OPS_MODELS.md`. Cost ladder: `no_agent` → qwen-gpu (tunnel) → day Grok → Codex Sol. **Bonsai DISABLED** (2026-08-06); ops fallback = Grok 4.6.
+See `OPS_MODELS.md`. Models are **optional per part**. Omit `models` to use Hermes' current default for every agent job. Set `models.default`, then override `pm` / `market` / `ops_review` / `autofix` / `executor` / `executor_night` / `ui_live` only where you want a different provider. Each may take an optional `fallback` (in-flight slice only).
 
-Configure concrete provider/model IDs in `ops-config.yaml` → `models:`.
+| Tier | Model | Use |
+|------|-------|-----|
+| $0 scripts | `no_agent` | Sentinel, PR monitor, brain consolidate, digest, optional GCP |
+| Agent jobs | `ops-config.yaml` → `models.*` or Hermes default | PM, market, ops-review, executor, autofix, UI live |
 
-| Tier | Provider / model (defaults) | Use |
-|------|-----------------------------|-----|
-| $0 scripts | `no_agent` | Sentinel, PR monitor, brain consolidate, digest gather, optional GCP scan |
-| Ops cheap | `qwen-gpu` / `qwen3.6-ops` → **Grok 4.6** | PM, market, daily ops review (Bonsai off) |
-| Grok 4.6 | `xai-oauth` / `grok-4.6` | **Day** roadmap executor, evening UI live |
-| Composer 2.5 | **DISABLED** | Do not re-add; coding fallback is Codex Sol only |
-| Codex Sol | `openai-codex` / `gpt-5.6-sol` | Sole coding-cron fallback (day/night/CI/UI) for in-flight slice only |
+**HARD STOP:** if the configured primary (and fallback, if any) is exhausted/unavailable → coding jobs **STOP**. Audit `QUOTA: …` and one short Telegram line (notify window). Do not invent another provider. Script jobs still run.
 
-**Dual-quota HARD STOP:** if Grok **and** Codex are both exhausted/unavailable → coding jobs **STOP**. Audit `QUOTA: …` and one short Telegram line (notify window). No Copilot/Bonsai coding thrash. Scripts + qwen-gpu PM/market/ops-review still run (fallback Grok).
-
-**Day Grok / night Codex (template defaults):**
-
-| Job | Schedule | Model |
-|-----|----------|-------|
-| `d4exec1014` day executor | hourly 09:00–17:00 weekdays | Grok 4.6 → Codex Sol · 20–30m |
-| `d4execnight` night executor | every 30m, 00:00–04:00 | Grok 4.6 → Codex Sol; **`deliver=local`** |
-| CI autofix | 09:30, 15:30 | Grok 4.6 → Codex Sol |
-| UI live (optional) | 21:00 | Grok 4.6 |
+| Job | Schedule | Model source |
+|-----|----------|--------------|
+| `d4exec1014` day executor | hourly 09:00–17:00 weekdays | `models.executor` or default · 20–30m |
+| `d4execnight` night executor | every 30m, 00:00–04:00 | `models.executor_night` or default; **`deliver=local`** |
+| CI autofix | 09:30, 15:30 | `models.autofix` or default |
+| UI live (optional) | 21:00 | `models.ui_live` or default |
 
 Night executor delivery is permanently **local only**: no Telegram and no messaging toolset. Night outcomes go to AUDIT/UI for the next daytime review.
 
