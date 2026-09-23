@@ -4,6 +4,31 @@ Your coding agent already writes patches. This kit gives it a **shift**: cron jo
 
 Install it on top of [Hermes Agent](https://hermes-agent.dev). It is not a fork and not another chat wrapper.
 
+## System map
+
+```mermaid
+flowchart LR
+  You[You] -->|goals / unblock| Memory["Brain + roadmap + audit"]
+  Memory --> Loop
+  subgraph Loop [On a clock]
+    Watch[Watch CI]
+    Plan[Plan]
+    Build[Build PRs]
+    Merge[Merge green]
+  end
+  Loop --> GitHub[GitHub]
+  GitHub -->|checks / PRs| Loop
+  Loop --> Memory
+  Memory --> UI[Local UI :8888]
+  Loop -->|fail / approve / 21:00 report| Ping[Telegram]
+  Ping --> You
+  UI -->|Needs you| You
+```
+
+You set goals and clear **Needs you**. The clock watches CI, plans the roadmap, opens PRs, and merges green ones. Status lives in the brain and on `:8888`. Telegram only fires for failures, approvals, and the daily report.
+
+Job-level diagrams: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ---
 
 ## What you walk away with
@@ -67,27 +92,6 @@ all day      PR monitor merges green labeled PRs; Telegram only Monâ€“Fri 09:00â
 ```
 
 Weekend: jobs still run. New ACTION/APPROVAL pings wait until Monday.
-
-```mermaid
-flowchart LR
-  You[You] -->|goals / unblock| Memory["Brain + roadmap + audit"]
-  Memory --> Loop
-  subgraph Loop [On a clock]
-    Watch[Watch CI]
-    Plan[Plan]
-    Build[Build PRs]
-    Merge[Merge green]
-  end
-  Loop --> GitHub[GitHub]
-  GitHub -->|checks / PRs| Loop
-  Loop --> Memory
-  Memory --> UI[Local UI :8888]
-  Loop -->|fail / approve / 21:00 report| Ping[Telegram]
-  Ping --> You
-  UI -->|Needs you| You
-```
-
-Job-level diagrams: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
