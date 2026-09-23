@@ -8,7 +8,8 @@
 
 ## Files
 
-- `INDEX.md` / `PRODUCTS.md` / `MARKET.md` / `BUYERS.md` / `PIPELINES.md` / `DECISIONS.md`
+- `INDEX.md` / `PRODUCTS.md` / `MARKET.md` / `MARKET_EVIDENCE.md` / `DEMAND.md` / `DISTRIBUTION.md`
+- `BUYERS.md` / `PIPELINES.md` / `DECISIONS.md`
 - `PRINCIPLES.md` / `PR_QUALITY.md`
 - `AUDIT.md` / `AUDIT.jsonl` / `OPS_CHANGELOG.md` / `DAILY_REPORTS.md`
 

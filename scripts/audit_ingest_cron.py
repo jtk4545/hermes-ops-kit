@@ -28,12 +28,16 @@ STATE_FILE = BRAIN_DIR / "AUDIT_INGESTED.json"
 # Agent (or hybrid) jobs — script-only jobs already call append_event themselves
 INGEST_JOB_IDS = {
     "026c0a4c82b7",  # CI scan + autofix agent response
-    "h11uilive23",  # UI live scan gate (may wake autofix)
+    "b1fb039a276d",  # GitHub vulnerability scan + autofix response
+    "h11uilive23",  # UI live scan + autofix agent response
     "c3pm0930",  # PM
-    "d4exec1014",  # executor
+    "d4exec1014",  # day executor
+    "d4execnight",  # night executor
     "e5market184",  # market
+    "r1reddit1200",  # reddit outreach tether + aedif-ai
     "f6ops2100",  # daily ops review agent (digest script also audits)
 }
+
 EXECUTOR_JOB_IDS = {"d4exec1014", "d4execnight"}
 
 
@@ -61,7 +65,12 @@ def reconcile_executor_runs(
     events: list[dict],
     append_fn=append_event,
 ) -> int:
-    """Guarantee an audit record when an executor produced no final response."""
+    """Guarantee one audit record for each executor registry completion.
+
+    Direct model writes and output ingestion remain richer and preferred. This
+    registry fallback covers provider failures, turn exhaustion, interruption,
+    and other paths that never produce a usable ``## Response`` artifact.
+    """
     completed = state.setdefault("executor_last_runs", {})
     appended = 0
     for job_id in sorted(EXECUTOR_JOB_IDS):
@@ -70,31 +79,37 @@ def reconcile_executor_runs(
         run_at = _parse_iso(run_raw)
         if not run_at or completed.get(job_id) == run_raw:
             continue
+
         previous_at = _parse_iso(completed.get(job_id))
         lower = previous_at or (run_at - timedelta(hours=2))
         upper = run_at + timedelta(minutes=5)
-        covered = any(
-            event.get("job_id") == job_id
-            and (event_at := _parse_iso(event.get("ts"))) is not None
-            and lower < event_at <= upper
-            for event in events
-        )
+        covered = False
+        for event in events:
+            if event.get("job_id") != job_id:
+                continue
+            event_at = _parse_iso(event.get("ts"))
+            if event_at and lower < event_at <= upper:
+                covered = True
+                break
+
         if not covered:
             raw_status = str(job.get("last_status") or "unknown")
-            detail = [
+            detail_parts = [
                 f"scheduler last_status={raw_status}",
                 f"last_run_at={run_raw}",
             ]
             if job.get("last_error"):
-                detail.append(f"last_error={job['last_error']}")
+                detail_parts.append(f"last_error={job['last_error']}")
             if job.get("last_delivery_error"):
-                detail.append(f"last_delivery_error={job['last_delivery_error']}")
+                detail_parts.append(
+                    f"last_delivery_error={job['last_delivery_error']}"
+                )
             append_fn(
                 job_id=job_id,
                 name=job.get("name") or job_id,
                 status=_registry_status(job),
                 summary="[registry-reconcile] Executor run had no direct/output audit event",
-                detail="\n".join(detail),
+                detail="\n".join(detail_parts),
                 extra={
                     "source": "cron_registry_reconcile",
                     "last_run_at": run_raw,
@@ -130,6 +145,14 @@ def job_names() -> dict[str, str]:
     return {j.get("id"): j.get("name") or j.get("id") for j in data.get("jobs", [])}
 
 
+_RESPONSE_HEADING_RE = re.compile(r"(?m)^## Response\s*$")
+
+
+def has_response_heading(text: str) -> bool:
+    """True only for a markdown heading, not skill prose that mentions ``## Response``."""
+    return bool(_RESPONSE_HEADING_RE.search(text))
+
+
 def extract_response(text: str) -> str:
     # Prefer ## Response section (agent jobs)
     m = re.search(r"(?ms)^## Response\s*\n(.*)$", text)
@@ -140,15 +163,26 @@ def extract_response(text: str) -> str:
         parts = text.split("---", 2)
         if len(parts) >= 3:
             return parts[2].strip()
-    # Fallback: last 40 lines
-    lines = text.strip().splitlines()
-    return "\n".join(lines[-40:]).strip()
+    # Do not fall back to last-N prompt lines. Skill/prompt tails contain
+    # words like "partial" / ACTION examples and are not the run outcome.
+    return ""
 
 
 def infer_status(response: str, job_meta: dict | None) -> str:
     low = response.lower()
     if response.strip() == "[SILENT]" or low.strip() == "[silent]":
         return "silent"
+    job_id = (job_meta or {}).get("id") or ""
+    # Daily ops Telegram report lists the human queue. Those ACTION/APPROVAL
+    # bullets are inventory, not a blocked run of f6ops2100 itself. Matching
+    # them used to stamp every 21:00 ingest as blocked (2026-08-19..29).
+    is_ops_report = bool(re.search(r"(?im)^(?:#+\s*)?OPS DAY REPORT\b", response))
+    if is_ops_report or job_id == "f6ops2100":
+        if "traceback" in low:
+            return "error"
+        return "ok"
+    # Only an explicit gate line is blocked. Generic prose such as "blocked audit"
+    # in a daily report must not change the run outcome.
     if re.search(
         r"(?im)^\s*(?:[-*]\s*)?(?:ACTION|APPROVAL)(?:\s+NEEDED)?\s*:",
         response,
@@ -165,12 +199,7 @@ _PR_RE = re.compile(
     r"https?://github\.com/([\w.-]+/[\w.-]+)/pull/\d+",
     re.I,
 )
-try:
-    from ops_config import github_org
-    _org = re.escape(github_org())
-except Exception:
-    _org = r"[\w.-]+"
-_REPO_RE = re.compile(rf"\b({_org}/[\w.-]+)\b", re.I)
+_REPO_RE = re.compile(r"\b(paladin-io/[\w.-]+)\b", re.I)
 _GATE_RE = re.compile(r"\b((?:ACTION|APPROVAL):\s*[^\n]+)", re.I)
 
 
@@ -258,9 +287,12 @@ def main() -> int:
                 text = path.read_text(encoding="utf-8", errors="replace")
             except OSError:
                 continue
-            # Prompt-only/interrupted artifacts contain policy words such as
-            # ACTION, blocked, and error; never infer an outcome from them.
-            if "## Response" not in text:
+            # Agent output without a Response *heading* is an interrupted/prompt-only
+            # artifact. Never treat skill prose that mentions ``## Response`` (classic:
+            # PRINCIPLES Daily ops hybrid-gate note) as a real section. Never infer
+            # status from trailing prompt text: words such as "partial", "blocked",
+            # "ACTION", and "error" there are policy examples, not the run outcome.
+            if not has_response_heading(text):
                 seen[key] = {
                     "skipped": "missing_response",
                     "at": datetime.now().isoformat(),
@@ -270,7 +302,7 @@ def main() -> int:
             if not response:
                 seen[key] = {"skipped": "empty", "at": datetime.now().isoformat()}
                 continue
-            if response.strip() == "[SILENT]":
+            if response.strip() == "[SILENT]": 
                 status = "silent"
                 summary = "Agent returned [SILENT]"
                 detail = ""
@@ -306,6 +338,8 @@ def main() -> int:
             }
             ingested += 1
 
+    # Output parsing is best-effort. Reconcile the scheduler registry afterward
+    # so both executors leave a trail even when no final response was produced.
     ingested += reconcile_executor_runs(jobs_by_id, state, load_events())
     save_state(state)
     # Silent always — audit trail is the record; no Telegram for routine ingest

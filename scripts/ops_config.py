@@ -47,9 +47,9 @@ DEFAULTS: dict[str, Any] = {
         "market": {"provider": "bonsai-local", "model": "bonsai-27b"},
         "ops_review": {"provider": "bonsai-local", "model": "bonsai-27b"},
         "autofix": {"provider": "openai-codex", "model": "gpt-5.6-sol"},
-        "executor": {"provider": "xai-oauth", "model": "grok-4.5"},
+        "executor": {"provider": "xai-oauth", "model": "grok-4.6"},
         "executor_night": {"provider": "openai-codex", "model": "gpt-5.6-sol"},
-        "ui_live": {"provider": "xai-oauth", "model": "grok-4.5"},
+        "ui_live": {"provider": "xai-oauth", "model": "grok-4.6"},
     },
     # Optional advanced topology flags (jobs still present in template;
     # disable unused ones in the live cron registry after render).
@@ -130,10 +130,14 @@ def load_config() -> dict[str, Any]:
         if not path.is_file():
             continue
         text = path.read_text(encoding="utf-8")
-        if path.suffix.lower() in {".yaml", ".yml"}:
-            data = _load_yaml(text)
-        else:
-            data = json.loads(text)
+        try:
+            if path.suffix.lower() in {".yaml", ".yml"}:
+                data = _load_yaml(text)
+            else:
+                data = json.loads(text)
+        except SystemExit:
+            # PyYAML missing — try next candidate (ops-config.json)
+            continue
         cfg = _deep_merge(cfg, data)
         cfg["_config_path"] = str(path)
         break

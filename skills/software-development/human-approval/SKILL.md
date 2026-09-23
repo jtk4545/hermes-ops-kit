@@ -100,7 +100,7 @@ python "$HERMES_HOME/scripts/roadmap_cli.py" edit -p <project> -i "<item>" \
 Then:
 
 1. `human_queue_watch` detects resolve → one Telegram “RESOLVED”
-2. Next eligible executor picks it up: **day** `d4exec1014` at **09:00, 11:00, 13:00, 15:00**; **night** `d4execnight` every 30m **22:00–04:30** (Codex only; 429 stops immediately)
+2. Next eligible executor picks it up: **day** `d4exec1014` hourly **09:00–17:00 weekdays**; **night** `d4execnight` every 30m **00:00–04:00** (Grok → Sol; `deliver=local`)
 3. Record outcome in `DECISIONS` when the agent resumes
 
 ### Approving a held PR (merge-on-green resume)

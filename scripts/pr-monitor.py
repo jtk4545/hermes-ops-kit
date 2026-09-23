@@ -148,30 +148,46 @@ def main() -> int:
     updated = replace_section(existing, "PR monitor", body)
     _atomic_write(pipe, updated)
 
-    if not alerts:
-        return 0
-    try:
-        from ops_audit import append_event
-
-        append_event(
-            job_id="b2prmon30m",
-            name="PR monitor",
-            status="ok" if notify_allowed else "silent",
-            summary=(
-                f"{len(alerts)} alert(s) (merge/hold/red); "
-                f"telegram={'sent' if notify_allowed else 'suppressed'}"
-            ),
-            detail="\n".join(alerts[:12]),
-            artifacts=[str(BRAIN_DIR / "PIPELINES.md")],
-        )
-    except Exception as exc:
-        print(f"audit skipped: {exc}", file=sys.stderr)
-    if not notify_allowed:
+    # Always leave a CORE_JOB_IDS event. Weekend / notify_window=false ticks with
+    # no Telegram alerts used to return before append_event and punch a scorecard hole.
+    _audit_poll(alerts=alerts, notify_allowed=notify_allowed, open_pr_count=len(seen))
+    if not alerts or not notify_allowed:
         return 0
     print("PR monitor alerts")
     for alert in alerts:
         print(f"- {alert}")
     return 0
+
+
+def _audit_poll(*, alerts: list[str], notify_allowed: bool, open_pr_count: int) -> None:
+    """Record every completed poll; empty stdout stays silent for Telegram."""
+    try:
+        from ops_audit import append_event
+
+        if alerts:
+            status = "ok" if notify_allowed else "silent"
+            summary = (
+                f"{len(alerts)} alert(s) (merge/hold/red); "
+                f"telegram={'sent' if notify_allowed else 'suppressed'}"
+            )
+            detail = "\n".join(alerts[:12])
+        else:
+            status = "silent"
+            summary = (
+                f"No Telegram alerts; poll complete "
+                f"(open_bot_prs={open_pr_count}; notify_window={notify_allowed})"
+            )
+            detail = ""
+        append_event(
+            job_id="b2prmon30m",
+            name="PR monitor",
+            status=status,
+            summary=summary,
+            detail=detail,
+            artifacts=[str(BRAIN_DIR / "PIPELINES.md")],
+        )
+    except Exception as exc:
+        print(f"audit skipped: {exc}", file=sys.stderr)
 
 
 if __name__ == "__main__":

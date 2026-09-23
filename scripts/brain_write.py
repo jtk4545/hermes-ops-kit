@@ -38,7 +38,10 @@ def replace_section(text: str, heading: str, body: str) -> str:
     )
     block = f"## {heading}\n\n{body.rstrip()}\n\n"
     if pattern.search(text):
-        return pattern.sub(block, text, count=1)
+        # Use a callable replacement so Windows paths and other backslashes in
+        # the section body are inserted literally instead of parsed as regex
+        # replacement escapes (for example, ``\U`` in ``C:\Users``).
+        return pattern.sub(lambda _match: block, text, count=1)
     return text.rstrip() + "\n\n" + block
 
 

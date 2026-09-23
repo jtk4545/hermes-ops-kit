@@ -8,6 +8,8 @@ import json
 import os
 import sys
 
+from human_queue_focus import build_focus
+
 ROADMAP_FILE = os.path.expanduser("~/.hermes/roadmaps.json")
 PHASES = ["In Progress", "Upcoming", "Backlog", "Done"]
 
@@ -76,8 +78,9 @@ def format_item(row: dict) -> str:
         lines.append("Tags: " + ", ".join(tags))
     lines.append(f"UI: http://127.0.0.1:8888/ → Needs you → I did this — release to agent")
     lines.append(
-        "After release: weekday executor (10:00 / 14:00) resumes; "
-        "human_queue_watch pings with exponential backoff until then."
+        "After release: next eligible day executor (09:00 / 11:00 / 13:00 / 15:00 CT) "
+        "or overnight executor resumes; human_queue_watch pings with exponential "
+        "backoff until then."
     )
     return "\n".join(lines)
 
@@ -91,20 +94,32 @@ def main() -> int:
         help="Only items with blocked=true",
     )
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--all", action="store_true", help="Show the unclustered full queue")
     args = parser.parse_args()
     rows = collect(args.project or None, include_unblocked_human=not args.blocked_only)
     if args.blocked_only:
         rows = [r for r in rows if r.get("blocked")]
+    focus = build_focus(rows)
+    selected = rows if args.all else focus["do_next"]
     if args.json:
-        json.dump(rows, sys.stdout, indent=2)
+        json.dump({"focus": focus, "items": selected}, sys.stdout, indent=2)
         print()
         return 0
-    if not rows:
+    if not selected:
         return 0
-    print("=== Human action / approval queue ===\n")
-    for i, row in enumerate(rows, 1):
+    print("=== Human action / approval queue — Do next ===")
+    print(
+        f"Showing {len(selected)} root action(s) of {focus['total_open']} open; "
+        f"Later/HOLD={len(focus['later'])}; waiting on root/agent={len(focus['waiting_agent'])}.\n"
+    )
+    for i, row in enumerate(selected, 1):
+        if row.get("unblocks_count"):
+            print(
+                f"FOCUS #{i} — {row['project']} P{row.get('priority', 3)} — "
+                f"unblocks {row['unblocks_count']} item(s)"
+            )
         print(format_item(row))
-        if i < len(rows):
+        if i < len(selected):
             print("\n---\n")
     return 0
 

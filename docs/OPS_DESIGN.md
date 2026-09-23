@@ -1,6 +1,6 @@
 # Hermes Ops Design (source of truth)
 
-**Read this periodically.** Packaged by [hermes-ops-kit](../README.md). Last reviewed: 2026-07-22 (portable day/night ladder + advanced topology).
+**Read this periodically.** Packaged by [hermes-ops-kit](../README.md). Last reviewed: 2026-09-23 (qwen-gpu cheap ops, Grok 4.6 coding, night 00:00–04:00 local).
 
 | Quick links | Path |
 |-------------|------|
@@ -64,6 +64,8 @@ Mirror helpers also live under `~/.hermes/scripts/` — **cron must resolve scri
 | either | red | Telegram RED only Mon–Fri notify_window; no merge |
 | either | pending | Silent |
 
+**Red Hermes PRs:** CI autofix (`pipeline-scan` + agent) may **amend** open `hermes-autofix` **or** `hermes-exec` PRs once per UTC day (`HERMES_PR_AMEND: YYYY-MM-DD` in body). Still red after that amend → HITL. Skips drafts and approval-held PRs. PR monitor stays merge-only.
+
 Executor marks Done when merged (or auto-merge queued, checks not red). Prod/breaking/migration work must set the approval hold — ordinary roadmap PRs should not.
 
 **GitHub identity:** prefer a dedicated bot via `HERMES_GH_TOKEN` (see `GITHUB_SERVICE_ACCOUNT.md`). Until set, ambient `gh` login is used.
@@ -74,28 +76,28 @@ Executor marks Done when merged (or auto-merge queued, checks not red). Prod/bre
 
 ## Model routing (day / night ladder)
 
-See `OPS_MODELS.md`. Cost ladder: `no_agent` → Bonsai → day Grok → Codex Sol (CI + night).
+See `OPS_MODELS.md`. Cost ladder: `no_agent` → qwen-gpu (tunnel) → day Grok → Codex Sol. **Bonsai DISABLED** (2026-08-06); ops fallback = Grok 4.6.
 
 Configure concrete provider/model IDs in `ops-config.yaml` → `models:`.
 
 | Tier | Provider / model (defaults) | Use |
 |------|-----------------------------|-----|
 | $0 scripts | `no_agent` | Sentinel, PR monitor, brain consolidate, digest gather, optional GCP scan |
-| Local | `bonsai-local` / `bonsai-27b` | PM, market research, daily ops review |
-| Grok 4.5 | `xai-oauth` / `grok-4.5` | **Day** roadmap executor, evening UI live |
-| Composer 2.5 | `xai-oauth` / `grok-composer-2.5-fast` | First fallback for a day executor's in-flight slice only |
-| Codex Sol | `openai-codex` / `gpt-5.6-sol` | CI autofix primary; **night** roadmap executor; final day fallback for in-flight slice only |
+| Ops cheap | `qwen-gpu` / `qwen3.6-ops` → **Grok 4.6** | PM, market, daily ops review (Bonsai off) |
+| Grok 4.6 | `xai-oauth` / `grok-4.6` | **Day** roadmap executor, evening UI live |
+| Composer 2.5 | **DISABLED** | Do not re-add; coding fallback is Codex Sol only |
+| Codex Sol | `openai-codex` / `gpt-5.6-sol` | Sole coding-cron fallback (day/night/CI/UI) for in-flight slice only |
 
-**Dual-quota HARD STOP:** if Grok **and** Codex are both exhausted/unavailable → coding jobs **STOP**. Audit `QUOTA: …` and one short Telegram line (notify window). No Copilot/Bonsai coding thrash. Scripts + Bonsai PM/market/ops-review still run.
+**Dual-quota HARD STOP:** if Grok **and** Codex are both exhausted/unavailable → coding jobs **STOP**. Audit `QUOTA: …` and one short Telegram line (notify window). No Copilot/Bonsai coding thrash. Scripts + qwen-gpu PM/market/ops-review still run (fallback Grok).
 
 **Day Grok / night Codex (template defaults):**
 
 | Job | Schedule | Model |
 |-----|----------|-------|
-| `d4exec1014` day executor | 09:00, 11:00, 13:00, 15:00 | Grok 4.5 → Composer 2.5 → Codex Sol · 20–30m |
-| `d4execnight` night executor | every 30m, 22:00–04:30 | Codex Sol only; empty fallback; **`deliver=local`** |
-| CI autofix | 09:30, 15:30 | Codex Sol primary; one Grok try if Codex exhausts mid-fix |
-| UI live (optional) | 21:00 | Grok 4.5 |
+| `d4exec1014` day executor | hourly 09:00–17:00 weekdays | Grok 4.6 → Codex Sol · 20–30m |
+| `d4execnight` night executor | every 30m, 00:00–04:00 | Grok 4.6 → Codex Sol; **`deliver=local`** |
+| CI autofix | 09:30, 15:30 | Grok 4.6 → Codex Sol |
+| UI live (optional) | 21:00 | Grok 4.6 |
 
 Night executor delivery is permanently **local only**: no Telegram and no messaging toolset. Night outcomes go to AUDIT/UI for the next daytime review.
 
@@ -210,16 +212,20 @@ Times use `timezone` from `ops-config.yaml` (default America/Chicago). Most jobs
 |----|----------|------|-------|-------------|
 | `a1brain0600` | 06:00 daily | `no_agent` `brain_consolidate.py` | — | Refresh INDEX; ok/silent |
 | `41cb7755ae6d` | 07:00 daily | `no_agent` `project-sentinel.py` | — | Local project health → PIPELINES |
-| `026c0a4c82b7` | 09:30, 15:30 daily | script `pipeline-scan.py` + agent | Codex Sol | Wake only on failures; ≤1 `hermes-autofix` PR/repo |
+| `026c0a4c82b7` | 09:30, 15:30 daily | script `pipeline-scan.py` + agent | Grok → Sol | Wake on branch CI failures **or** red `hermes-autofix`/`hermes-exec` PRs; amend ≤1/UTC day then HITL; ≤1 new autofix PR/repo |
+| `b1fb039a276d` | 10:00 daily | script `dependabot_alert_monitor.py` + agent | Grok → Sol | Scan configured repos for open Dependabot alerts; dedupe; create focused, verified `hermes-autofix` PRs; ≤1 vulnerability PR/repo/run; audit disabled/unscannable repos |
 | `b2prmon30m` | */30 | `no_agent` `pr-monitor.py` | — | Merge-on-green 24/7; Telegram Mon–Fri notify_window only |
-| `c3pm0930` | 09:30 daily | agent | Bonsai | Brain-first PM; owner + HITL (weekend: defer HITL Telegram) |
-| `d4exec1014` | 09:00, 11:00, 13:00, 15:00 daily | agent | Grok 4.5 | ~20–30m; decompose; follow-ups; weekend: no new HITL Telegram |
-| `e5market184` | 18:00 daily | agent | Bonsai | Market/buyers → brain; SILENT if no change |
-| `f6ops2100` | 21:00 daily | script `ops_day_digest.py` + agent | Bonsai | Grade day; safe improvements; **always** Telegram report |
+| `c3pm0930` | 09:30 daily | agent | qwen-gpu → Grok | Brain-first PM; demand greenlight/cancel; owner + HITL (weekend: defer HITL Telegram) |
+| `d4exec1014` | hourly 09:00–17:00 weekdays | agent | Grok 4.6 | ~20–30m; decompose; follow-ups; weekend excluded |
+| `e5market184` | 18:00 daily | agent | qwen-gpu → Grok | Demand listen + grades (1–2 products); SILENT if no decision change |
+| `f6ops2100` | 21:00 daily | script `ops_day_digest.py` + agent | qwen-gpu → Grok | Grade day; safe improvements; **always** Telegram report |
 | `g7ui5m` | */5 | `no_agent` `roadmap_ui_watchdog.py` | — | Keep roadmap UI up |
 | `g8sync0615` | 06:15 daily | `no_agent` `sync_hermes_mirrors.py` | — | Sync HERMES_HOME ↔ `~/.hermes` |
 | `g9auditingest` | */10 | `no_agent` `audit_ingest_cron.py` | — | Backfill agent cron outputs → AUDIT |
 | `g10humanq` | */15 | `no_agent` `human_queue_watch.py` | — | Needs-you Telegram backoff (**suppressed Sat/Sun**) |
+| `2d19bf9760f6` | hourly 09:00–17:00 weekdays | script `roadmap_auto_unblock.py apply` + agent | qwen-gpu → Grok | Aggressively probe local/CLI/API/public-browser/signed-in-UI routes; release or narrow agent work; preserve only explicit secrets/auth/payment/legal/subjective/destructive-prod/APPROVAL gates; local delivery |
+| `h13prodops30` | hourly at :15 | `no_agent` `prod_ops_monitor.py` | — | Read-only muse/prod viewer scan → findings + idempotent `[ops]` roadmap bugs; local delivery |
+| `r1reddit1200` | hourly 09:00–17:00 weekdays | agent | Grok → Sol | Signed-in Reddit outreach/check-in for tether + aedif-ai; retain low-volume daily caps, cooldowns, product-truth and reply-evidence gates |
 
 ### Optional advanced topology
 
@@ -227,8 +233,8 @@ Present in `jobs.template.json`; enable via `features:` in config and keep/disab
 
 | ID | Schedule | Mode | Model | Notes |
 |----|----------|------|-------|-------|
-| `d4execnight` | every 30m, 22:00–04:30 | agent | Codex Sol | **`deliver=local`**; empty fallback; quota hard stop; no Telegram |
-| `h11uilive23` | 21:00 daily | script `ui-live-scan.py` + agent | Grok 4.5 | Wake on UI/live failures; ≤1 autofix PR/repo |
+| `d4execnight` | every 30m, 00:00–04:00 | agent | Grok → Sol | **`deliver=local`**; Sol fallback; quota hard stop; no Telegram |
+| `h11uilive23` | 21:00 daily | script `ui-live-scan.py` + agent | Grok 4.6 | Wake on UI/live failures; ≤1 autofix PR/repo |
 | `h12gcloud0730` | 07:30 daily | `no_agent` `gcloud-ops-scan.py` | — | Read-only cloud health/cost → PIPELINES; Telegram on issues; **no autofix wake** |
 
 Repos for CI/PR monitor: from `ops-config.yaml` → `github.repos`. Local health checks: `projects:`. Models: `models:`. Feature flags: `features:`.
@@ -261,18 +267,36 @@ So sentinel keeps **exit 0** when the script itself succeeded. Product failures 
 06:15  Mirror sync (HERMES_HOME ↔ ~/.hermes)
 07:00  Project sentinel
 07:30  GCP ops scan (optional; Telegram on issues)
-09:30  CI scan (+ autofix if needed)     …also 15:30
+:15/hr Prod ops monitor (read-only muse → findings/roadmap)
+09:30  CI scan (+ autofix / amend-on-red if needed)     …also 15:30
+10:00  GitHub Dependabot vulnerability scan + autofix
+09:00  Roadmap safe auto-unblock                    …hourly through 17:00 weekdays
 09:30  Product manager (daily; weekend defer HITL)
-09:00  Roadmap executor                  …also 11:00, 13:00, 15:00
-22:00  Night executor window             …every 30m through 04:30 (Codex only; local)
+09:00  Roadmap executor                  …hourly through 17:00 weekdays
+00:00  Night executor window             …every 30m through 03:30 (Grok → Sol; local only)
 */5    Roadmap UI watchdog (:8888)
 */10   Audit ingest
 */15   Human queue watch (quiet Sat/Sun)
 */30   PR monitor (merge 24/7; Telegram Mon–Fri notify_window)
-18:00  Market research (SILENT if unchanged)
+09:00  Reddit outreach/check-in (hourly through 17:00 weekdays; low-volume caps remain)
+18:00  Market research (demand listen + grades; SILENT if unchanged)
 21:00  Daily ops review + Telegram report
 21:00  UI live scan (optional; + autofix if needed)
 ```
+
+---
+
+## Release agent contract
+
+The release agent is product-aware; it must not force every product through one deployment model.
+
+1. Build a durable release record linking commit → immutable artifact/digest → target instance/environment.
+2. Read prior release records for that product and elevate recurring failed/rolled-back risk classes. No prior history is explicit production risk.
+3. Run predicted-risk, manifest prerequisite, backward-compatibility, mitigation and rollback evaluation before activation. Unknown/skipped evidence blocks.
+4. Observe the actual serving artifact and complete timed post-release checks; workflow success alone is not verification.
+5. Persist the result and lessons for the next release.
+
+Aedif AI and Tether are priority weight 10. Canonical details live in `release-manager` → `references/release-decision-rules.md` and `scripts/releases/manifests/{aedif-ai,tether}.json`; enforcement entrypoint is `scripts/release_rules.py`.
 
 ---
 
@@ -288,7 +312,8 @@ So sentinel keeps **exit 0** when the script itself succeeded. Product failures 
 | GitHub service account | Documented; set `HERMES_GH_TOKEN` for non-interactive scripts |
 | Branch protection review bypass for bot | If rules require human review, green PRs stay held until `yes` / `hermes-approved` |
 | GCP ops SA | Optional advanced — install script + credentials separately; no project IDs in kit |
-| CI vs UI live overlap | Both may wake autofix; ≤1 open `hermes-autofix` PR/repo keeps it bounded |
+| CI vs UI live overlap | Both may wake autofix; ≤1 new `hermes-autofix` PR/repo; red Hermes PRs get ≤1 amend/UTC day then HITL |
+| Dependabot coverage | Tether enabled; ntviewer, paladin-streaming, secure_comms, paxdev, aedif-marketplace, and aedif-ai currently return disabled/403. Vulnerability job audits these as coverage gaps rather than claiming clean. |
 
 ---
 

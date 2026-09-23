@@ -71,6 +71,7 @@ def install_docs() -> None:
         "GITHUB_SERVICE_ACCOUNT.md",
         "ARCHITECTURE.md",
         "GCLOUD_OPS_SETUP.md",
+        "REMOTE_QWEN_GPU.md",
     ):
         src = KIT_ROOT / "docs" / name
         if src.is_file():

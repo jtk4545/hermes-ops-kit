@@ -38,13 +38,13 @@
     "local_checks": []
   },
   "models": {
-    "pm": {"provider": "bonsai-local", "model": "bonsai-27b"},
-    "market": {"provider": "bonsai-local", "model": "bonsai-27b"},
-    "ops_review": {"provider": "bonsai-local", "model": "bonsai-27b"},
-    "autofix": {"provider": "openai-codex", "model": "gpt-5.6-sol"},
-    "executor": {"provider": "xai-oauth", "model": "grok-4.5"},
-    "executor_night": {"provider": "openai-codex", "model": "gpt-5.6-sol"},
-    "ui_live": {"provider": "xai-oauth", "model": "grok-4.5"}
+    "pm": {"provider": "qwen-gpu", "model": "qwen3.6-ops"},
+    "market": {"provider": "qwen-gpu", "model": "qwen3.6-ops"},
+    "ops_review": {"provider": "qwen-gpu", "model": "qwen3.6-ops"},
+    "autofix": {"provider": "xai-oauth", "model": "grok-4.6"},
+    "executor": {"provider": "xai-oauth", "model": "grok-4.6"},
+    "executor_night": {"provider": "xai-oauth", "model": "grok-4.6"},
+    "ui_live": {"provider": "xai-oauth", "model": "grok-4.6"}
   },
   "features": {
     "night_executor": true,

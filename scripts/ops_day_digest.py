@@ -9,55 +9,42 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
-try:
-    from ops_config import timezone_name as _tz_name
-except Exception:
-    def _tz_name():
-        return 'America/Chicago'
 
-try:
-    from hermes_paths import brain_dir, dot_hermes, hermes_home
-except Exception:
-    import os as _os
+HERMES_HOME = Path(
+    __import__("os").environ.get(
+        "HERMES_HOME",
+        str(Path.home() / "AppData/Local/hermes"),
+    )
+)
+# Windows HERMES_HOME is typically LOCALAPPDATA\hermes
+if not (HERMES_HOME / "cron").is_dir():
+    local = Path(__import__("os").environ.get("LOCALAPPDATA", "")) / "hermes"
+    if (local / "cron").is_dir():
+        HERMES_HOME = local
 
-    def hermes_home():
-        env = _os.environ.get("HERMES_HOME", "").strip()
-        if env:
-            return Path(env)
-        return Path.home() / ".local" / "share" / "hermes"
-
-    def brain_dir():
-        return hermes_home() / "brain"
-
-    def dot_hermes():
-        return Path.home() / ".hermes"
-
-HERMES_HOME = hermes_home()
 JOBS_FILE = HERMES_HOME / "cron" / "jobs.json"
 OUTPUT_DIR = HERMES_HOME / "cron" / "output"
-BRAIN_DIR = brain_dir()
-ROADMAP_FILE = dot_hermes() / "roadmaps.json"
-DESIGN_DOC = dot_hermes() / "OPS_DESIGN.md"
-TZ = ZoneInfo(_tz_name())
+BRAIN_DIR = HERMES_HOME / "brain"
+ROADMAP_FILE = Path.home() / ".hermes" / "roadmaps.json"
+DESIGN_DOC = Path.home() / ".hermes" / "OPS_DESIGN.md"
+TZ = ZoneInfo("America/Chicago")
 
 # Expected behaviors for review (id -> expectations)
 EXPECTATIONS = {
     "a1brain0600": "no_agent consolidate; refresh brain INDEX; telegram ok or silent",
     "41cb7755ae6d": "no_agent local health; write PIPELINES health; report failures",
+    "h12gcloud0730": "no_agent GCP ops/cost; PIPELINES/COSTS; Telegram on issues; no autofix wake",
     "026c0a4c82b7": "daily CI scan; wake on failures; weekend defer HITL Telegram",
-    "b2prmon30m": "merge-on-green; APPROVAL Telegram weekdays only",
+    "h11uilive23": "nightly UI/live scan; wake autofix on product/selector failures; env → HITL",
+    "b2prmon30m": "merge-on-green 24/7; Telegram APPROVAL/RED only Mon-Fri 09:00-17:00 CT",
     "c3pm0930": "daily PM; weekend prefer agent items / defer HITL Telegram",
     "d4exec1014": "daily 20–30m; decompose; follow-ups; weekend defer HITL Telegram",
     "e5market184": "daily market/buyers; US sources; SILENT if no change",
-    "g10humanq": "Needs-you backoff; quiet Sat/Sun",
     "f6ops2100": "daily review itself — skip self-grade except meta",
     "g7ui5m": "no_agent; keep roadmap UI :8888 up",
     "g8sync0615": "no_agent; sync HERMES_HOME ↔ ~/.hermes mirrors",
     "g9auditingest": "no_agent; ingest agent cron outputs into AUDIT",
     "g10humanq": "no_agent; Needs-you queue Telegram with exponential backoff; detect releases",
-    # Optional modules (create cron jobs only when enabled in ops-config)
-    "h12gcloud0730": "optional; no_agent GCP read-only scan; PIPELINES/COSTS; no autofix wake",
-    "h11uilive23": "optional; UI/e2e GHA scan; optional local live checks behind HERMES_UI_LIVE_RUN",
 }
 
 
@@ -133,6 +120,16 @@ def human_queue() -> list[dict]:
 
 
 def main() -> int:
+    # Cron parent on Windows historically decoded pipes as cp1252; keep
+    # stdout UTF-8-clean and always emit a non-empty wake line early so a
+    # mid-run failure cannot look like "empty stdout -> skip AI".
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+    print(json.dumps({"wakeAgent": True, "phase": "start"}), flush=True)
+
     # Ensure agent cron outputs land in the audit trail even if the model forgot
     try:
         from audit_ingest_cron import main as ingest
@@ -198,7 +195,9 @@ def main() -> int:
         lines.append(f"- last_delivery_error={deliv}")
         lines.append(f"- expectation: {EXPECTATIONS.get(jid, '(none documented)')}")
         outs = summarize_outputs(jid, day)
-        lines.append(f"- outputs_today={len(list((OUTPUT_DIR / jid).glob(f'{day}_*.md'))) if (OUTPUT_DIR / jid).is_dir() else 0}")
+        lines.append(
+            f"- outputs_today={len(list((OUTPUT_DIR / jid).glob(f'{day}_*.md'))) if (OUTPUT_DIR / jid).is_dir() else 0}"
+        )
         for o in outs[:3]:
             lines.append(f"  - {o['file']} flags={o['flags'] or 'none'}")
             if o["flags"]:
@@ -242,18 +241,20 @@ def main() -> int:
     lines.append("5. Apply safe improvements; log them; Telegram concise day report.")
     lines.append("")
 
-    text = "\n".join(lines)
+    text_out = "\n".join(lines)
     BRAIN_DIR.mkdir(parents=True, exist_ok=True)
     out_path = BRAIN_DIR / f"DAILY_DIGEST_{day}.md"
-    out_path.write_text(text, encoding="utf-8")
+    out_path.write_text(text_out, encoding="utf-8")
 
     # Also maintain latest pointer
-    (BRAIN_DIR / "DAILY_DIGEST_LATEST.md").write_text(text, encoding="utf-8")
+    (BRAIN_DIR / "DAILY_DIGEST_LATEST.md").write_text(text_out, encoding="utf-8")
 
-    print(text)
-    print(f"\n[digest written: {out_path}]")
-    # Always wake evening reviewer
-    print(json.dumps({"wakeAgent": True}))
+    # Always emit ASCII-safe digest on stdout. Cron parent on Windows may
+    # still decode pipes as cp1252 until gateway reloads scheduler UTF-8 fix.
+    print(text_out.encode("ascii", "replace").decode("ascii"))
+    print(f"\n[digest written: {out_path}]", flush=True)
+    # Always wake evening reviewer (last non-empty line = wake gate)
+    print(json.dumps({"wakeAgent": True}), flush=True)
     try:
         from ops_audit import append_event
 
@@ -273,4 +274,13 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        raise SystemExit(main())
+    except Exception as exc:
+        # Last-resort wake so the daily review job cannot go fully silent.
+        try:
+            print(f"DIGEST FATAL: {exc}", flush=True)
+            print(json.dumps({"wakeAgent": True, "error": str(exc)}), flush=True)
+        except Exception:
+            pass
+        raise

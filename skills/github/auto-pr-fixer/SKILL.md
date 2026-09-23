@@ -7,22 +7,44 @@ category: github
 ## When to use
 - CI pipeline failures on main/trunk/dev/qa need investigation and remediation
 - You want to detect, classify, and auto-create **real fix** PRs (not suggestion-only)
-- Shared ops brain + PR monitor handle status after you open `hermes-autofix` PRs
+- Open `hermes-autofix` / `hermes-exec` PRs whose checks went red (amend-on-red from `pipeline-scan`)
+- Shared ops brain + PR monitor handle merge-on-green after you open / amend Hermes PRs
 
 ## Brain contract (required)
 1. `python $HERMES_HOME/scripts/brain_read.py --sections PRODUCTS,DECISIONS,PIPELINES,PRINCIPLES,PR_QUALITY`
 2. Follow skill `quality-principles` (CI autofix section + that repo’s PR_QUALITY)
-3. Apply real patches; open PR with label `hermes-autofix`
+3. Apply real patches; open **or amend** PR (preserve existing `hermes-autofix` / `hermes-exec` label)
 4. `brain_write.py PIPELINES --append` (+ PRODUCTS note if needed)
 5. On durable lesson: `brain_write.py PR_QUALITY --append` then `sync_quality_skill.py`
-6. Max 1 open autofix PR per repo; never force-push main
+6. Max 1 open autofix PR per repo when creating new ones; never force-push main
 
 ## What it does
 1. Prefer script `pipeline-scan.py` output / `gh run list --repo X --json ...`
 2. Filters to tracked branches (`main`, `trunk`, `dev`, `qa`, `routine/qa-loop`) and non-prod workflows
 3. Classifies failures from job logs
-4. Implements a real fix, commits, pushes, opens labeled PR
+4. Implements a real fix, commits, pushes; opens labeled PR **or amends** an existing red Hermes PR
 5. Relies on `pr-monitor.py` cron for check polling / **auto-merge on green** (unless `hermes-needs-approval`). Prefer enabling `gh pr merge --auto --squash --delete-branch` when opening the PR.
+
+## Red open Hermes PRs (amend-on-red)
+
+`pipeline-scan.py` classifies open `hermes-autofix` **and** `hermes-exec` PRs and may wake with `RED_HERMES_AMEND=1` / `RED_HERMES_HITL=1` (also prints legacy `RED_AUTOFIX_*`).
+
+| PIPELINES / scan signal | Action |
+|---|---|
+| `RED amend-eligible` | **One** amend this UTC day: push fix commit(s) to the **existing** PR branch. Do **not** open a second PR. Keep the existing role label. |
+| `RED amend-exhausted (HITL)` | Still red after today’s amend — **HITL** with failing check URL + exact ask. No further push today. |
+| draft / `hermes-needs-approval` / pending / green | Skip amend (monitor merges green; hold/draft left alone) |
+
+**After amending**, update the PR body so it contains today’s UTC date marker (replace any prior line):
+
+```text
+HERMES_PR_AMEND: YYYY-MM-DD
+```
+
+(`HERMES_AUTOFIX_AMEND: YYYY-MM-DD` still accepted by the scanner.)
+
+Example: `gh pr edit <n> --repo <slug> --body "$(…existing body with marker updated…)"`  
+Scanner uses that marker for the ≤1 amend/day cap.
 
 ## Pipeline filtering (IMPORTANT)
 

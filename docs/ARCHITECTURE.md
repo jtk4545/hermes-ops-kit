@@ -59,10 +59,10 @@ flowchart LR
 06:15  Sync HERMES_HOME ↔ ~/.hermes mirrors
 07:00  Project sentinel (local health → PIPELINES)
 07:30  GCP ops scan (optional)
-09:30  CI scan (+ autofix agent if wakeAgent)   …also 15:30
+09:30  CI scan (+ autofix / amend-on-red if wakeAgent)   …also 15:30
 09:30  Product manager (roadmap classify)
-09:00  Roadmap executor (day Grok)              …also 11:00, 13:00, 15:00
-22:00  Night executor (Codex, local)            …every 30m through 04:30
+09:00  Roadmap executor (day Grok)              …hourly through 17:00 weekdays
+00:00  Night executor (Grok → Sol, local)       …every 30m through 03:30
 */15   Human queue watch (Telegram backoff; quiet weekends)
 */30   PR monitor (merge-on-green 24/7; Telegram Mon–Fri notify_window)
 */10   Audit ingest (backfill agent outputs)
@@ -78,12 +78,12 @@ flowchart TD
   c0615 --> c0700[07:00 sentinel]
   c0700 --> c0730[07:30 GCP optional]
   c0730 --> c0930ci[09:30 / 15:30 CI scan]
-  c0930ci -->|wakeAgent| autofix[Autofix Codex Sol]
+  c0930ci -->|wakeAgent| autofix[Autofix Grok]
   c0930ci --> c0930pm[09:30 PM]
-  c0930pm --> cDay[09/11/13/15 day executor]
+  c0930pm --> cDay[09:00-17:00 weekday executor]
   cDay --> prs[hermes-exec PRs]
   autofix --> afPRs[hermes-autofix PRs]
-  cNight[22:00-04:30 night Codex local] --> prs
+  cNight[00:00-04:00 night Grok local] --> prs
   prs --> monitor[*/30 PR monitor]
   afPRs --> monitor
   monitor -->|green| merge[Auto-merge]
@@ -148,6 +148,8 @@ Jobs are always present in `jobs.template.json`; disable unused ones in the live
 | `hermes-exec` or `hermes-autofix` | green | Auto-merge squash |
 | + `hermes-needs-approval` | green | Hold; APPROVAL Telegram (notify window) |
 | either | red | Telegram RED (notify window); no merge |
+
+CI autofix may amend red `hermes-autofix` / `hermes-exec` PRs (≤1/UTC day) then HITL; PR monitor remains merge-only.
 
 Prefer `HERMES_GH_TOKEN` bot identity (see `GITHUB_SERVICE_ACCOUNT.md`). Open PRs via `gh_ops.py create-pr` for model attribution labels.
 

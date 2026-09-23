@@ -4,7 +4,7 @@
 Populates/keeps the UI panel honest by nagging until human_actions are listed and
 the item is released (blocked=false, owner=agent) via UI/CLI.
 
-Silent when nothing is due. deliver=telegram on the cron job.
+Silent when nothing is due or outside Mon–Fri 09:00–17:00 CT. deliver=telegram.
 """
 
 from __future__ import annotations
@@ -15,20 +15,16 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
-try:
-    from ops_config import timezone_name as _tz_name
-except Exception:
-    def _tz_name():
-        return 'America/Chicago'
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from human_block_format import collect, format_item, kind_of  # noqa: E402
+from human_queue_focus import build_focus  # noqa: E402
 from ops_audit import append_event  # noqa: E402
 from brain_paths import BRAIN_DIR  # noqa: E402
 from weekend_policy import in_notify_window, next_notify_window_start  # noqa: E402
 
-TZ = ZoneInfo(_tz_name())
+TZ = ZoneInfo("America/Chicago")
 STATE_FILE = BRAIN_DIR / "HUMAN_QUEUE_STATE.json"
 UI_URL = "http://127.0.0.1:8888/"
 JOB_ID = "g10humanq"
@@ -131,6 +127,8 @@ def main() -> int:
     rows = collect(None, include_unblocked_human=True)
     # Skip Done-phase humans if any slipped in
     rows = [r for r in rows if r.get("phase") != "Done"]
+    focus = build_focus(rows)
+    alertable_ids = {str(r.get("id") or "") for r in focus["do_next"]}
     current_keys = {item_key(r) for r in rows}
     by_key = {item_key(r): r for r in rows}
 
@@ -178,13 +176,16 @@ def main() -> int:
         entry["has_steps"] = bool(acts)
         entry["kind"] = kind_of(row)
 
-        due = args.force or is_due(entry, now)
+        due = (
+            args.force or is_due(entry, now)
+        ) and str(row.get("id") or "") in alertable_ids
         if not due:
             continue
 
-        # Outside the configured window: track, but do not consume backoff.
-        if not notify_ok and not args.force:
+        # Outside Mon–Fri 09:00–17:00 CT: track queue, do not Telegram-nag
+        if (not notify_ok) and not args.force:
             if not args.dry_run:
+                # Defer to next business-hours open without burning backoff
                 entry["next_alert_at"] = next_notify_window_start(now).isoformat()
                 entry["window_suppressed"] = True
             continue
@@ -235,6 +236,8 @@ def main() -> int:
         f"=== Human queue ({now.strftime('%Y-%m-%d %H:%M %Z')}) ===",
         f"Open: {len(current_keys)} · Alerts this run: {alerts_sent} · "
         f"Resolved this run: {len(newly_resolved)}",
+        f"Focus roots: {len(focus['do_next'])} · Later/HOLD: {len(focus['later'])} · "
+        f"Waiting on root/agent: {len(focus['waiting_agent'])}",
         f"Panel: {UI_URL}",
         "",
     ]

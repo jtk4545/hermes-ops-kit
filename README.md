@@ -1,169 +1,146 @@
 # hermes-ops-kit
 
-**Your coding agent runs a daily engineering ops team — CI, roadmap, PRs, and a “needs you” queue — while you stay mostly offline.**
+Your coding agent already writes patches. This kit gives it a **shift**: cron jobs, a shared memory, a local dashboard, and a Telegram that only fires when a human actually has to do something.
 
-This kit turns [Hermes Agent](https://hermes-agent.dev) into a scheduled pipeline that:
-
-1. Watches your GitHub CI and opens real autofix PRs  
-2. Keeps a product roadmap (agent work vs human work)  
-3. Implements agent-owned items and merges green PRs  
-4. Texts you on Telegram only when something failed, needs approval, or it’s the end-of-day report  
-
-It is **not** another chatbot. It is **not** a Hermes fork. It’s the ops layer you install on top of Hermes so the agent shows up for work on a clock.
+Install it on top of [Hermes Agent](https://hermes-agent.dev). It is not a fork and not another chat wrapper.
 
 ---
 
-## In one sentence
+## What you walk away with
 
-Cron jobs + a shared brain + a local UI + sparse Telegram = an autonomous software ops loop you can actually leave running.
+| While you are gone | When you get back |
+|--------------------|-------------------|
+| CI watched; autofix PRs opened on red checks | Green `hermes-exec` / `hermes-autofix` PRs already merging |
+| Agent-owned roadmap items implemented against tests | Dashboard on `:8888` shows what moved |
+| Failures, approvals, and the 21:00 report on Telegram | A **Needs you** list with exact steps — not a wall of logs |
 
-| You get | You don’t get |
-|---------|----------------|
-| Daily CI → PR → merge loop | Another AI wrapper with no schedule |
-| Roadmap with clear human gates | Vague “assistant will figure it out” |
-| Audit trail + dashboard on `:8888` | Telegram spam for every successful job |
-| Installable templates for your org/repos | Someone else’s products, tokens, or history |
-
-**Requires:** Hermes already installed and gateway running. Then clone this kit, fill `ops-config.yaml`, run `install.py`.
-
----
-
-## How it works
-
-Once a day (and on a few short intervals), Hermes runs a small set of jobs. They share one memory, ship work to GitHub, and only bother you when something is blocked or broken.
-
-```mermaid
-flowchart LR
-  You[You] -->|"set goals / unblock"| Memory["Shared memory\nbrain + roadmap + audit"]
-  Memory --> Loop
-  subgraph Loop [What runs on a schedule]
-    direction TB
-    Watch[Watch CI and local health]
-    Plan[Plan the roadmap]
-    Build[Build and open PRs]
-    Merge[Merge when green]
-  end
-  Loop --> GitHub[GitHub]
-  GitHub -->|"checks / PRs"| Loop
-  Loop -->|"status lives here"| Memory
-  Memory -->|"dashboard"| UI[Local UI]
-  Loop -->|"only if needed"| Ping["Telegram\nfail / approve / daily report"]
-  Ping --> You
-  UI -->|"Needs you → release"| You
-```
-
-**The loop**
-
-1. **Watch** — CI and local project health get checked; results go into shared memory.  
-2. **Plan** — Work is labeled agent-owned or human-owned (with exact steps when it’s you).  
-3. **Build** — Agent items become real PRs; red CI can get an autofix PR.  
-4. **Merge** — Green safe PRs merge themselves; risky ones wait for your yes.  
-5. **You only when needed** — Dashboard for progress; Telegram for failures, approvals, and the daily report.  
-
-Job-level detail: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
----
-
-## What’s in the box
-
-- Scripts: brain bus, audit, CI/PR monitors, roadmap UI, HITL helpers  
-- Skills: `brain`, `roadmap`, `dev-test-loop`, `human-approval`, `ops-daily-review`, `auto-pr-fixer`, …  
-- Templated cron jobs (sparse Telegram contracts baked in)  
-- Empty brain + roadmap starters  
-- `install/install.py` + `install/doctor.py`  
-
-**Not shipped:** live brain content, cron history, tokens, or product-specific secrets.
-
----
-
-## Prerequisites
-
-1. Hermes Agent (`hermes` on PATH) + gateway running  
-2. Auth for the models in your config (`hermes auth list`) — template coding jobs need `xai-oauth` (`hermes auth add xai-oauth`)  
-3. `gh` authenticated — prefer `HERMES_GH_TOKEN` bot ([docs/GITHUB_SERVICE_ACCOUNT.md](docs/GITHUB_SERVICE_ACCOUNT.md))  
-4. Python 3.11+  
-5. Optional: `pip install pyyaml` (YAML config; JSON works without it)  
+You still own secrets, prod consoles, and anything labeled `owner=human`. The agent does not force-push `main` and does not spam you for successful jobs.
 
 ---
 
 ## 10-minute setup
+
+Requires: Hermes on PATH, gateway running, Python 3.11+, `gh` auth. Coding jobs also need `hermes auth add xai-oauth` (and usually `openai-codex`).
 
 ```bash
 git clone https://github.com/jtk4545/hermes-ops-kit.git
 cd hermes-ops-kit
 
 cp config.example.yaml ops-config.yaml
-# edit: org, repos, projects_root, models, timezone
+# edit four things: github.org, github.repos, products, timezone
+# then models.* if your provider IDs differ
 
 python install/install.py --config ops-config.yaml
-# review $HERMES_HOME/cron/generated/CREATE_JOBS.md
-# then hermes cron create … per job
-
 python install/doctor.py
 python "$HERMES_HOME/scripts/server.py"   # http://127.0.0.1:8888/
 ```
 
-**`HERMES_HOME` defaults** (override anytime):
+`install.py` copies scripts/skills, seeds an empty brain, and writes `$HERMES_HOME/cron/generated/CREATE_JOBS.md`. It **does not** overwrite your live `cron/jobs.json`. You create jobs from that guide, in layers:
+
+1. Scripts (`no_agent`): sentinel, PR monitor, UI watchdog, audit, human queue
+2. PM + market + daily report
+3. CI autofix + day executor
+4. Optional: night executor, UI-live, GCP scan
+
+**`HERMES_HOME` defaults**
 
 | OS | Default |
 |----|---------|
 | Windows | `%LOCALAPPDATA%\hermes` |
 | Linux / macOS | `$XDG_DATA_HOME/hermes` or `~/.local/share/hermes` |
 
-Interactive mirrors and `roadmaps.json` live under `~/.hermes` on every OS. Prefer forward-slash paths in prompts/skills (`$HERMES_HOME/scripts/...`).
+Interactive mirrors and `roadmaps.json` live under `~/.hermes`. Prefer forward-slash paths in prompts (`$HERMES_HOME/scripts/...`).
 
-**Turn jobs on in layers:** scripts first (sentinel, PR monitor, UI, audit, human queue) → PM + market → CI autofix + executor.
+Open **http://127.0.0.1:8888/checkin** after the UI starts. If that page loads, install worked.
 
 ---
 
-## Configuration
+## A weekday, in plain terms
 
-[config.example.yaml](config.example.yaml)
+```text
+09:00–17:00  Day executor picks agent-owned roadmap items, opens PRs (20–30m slices)
+09:30 / 15:30  CI scan. Red checks → autofix PR, or one amend on an open Hermes PR
+all day      PR monitor merges green labeled PRs; Telegram only Mon–Fri 09:00–17:00
+18:00        Market notes land in the brain (no code)
+21:00        Daily report on Telegram; optional UI-live scan
+00:00–04:00  Night executor, local only — nothing hits Telegram
+```
 
-| Key | Purpose |
-|-----|---------|
+Weekend: jobs still run. New ACTION/APPROVAL pings wait until Monday.
+
+```mermaid
+flowchart LR
+  You[You] -->|goals / unblock| Memory["Brain + roadmap + audit"]
+  Memory --> Loop
+  subgraph Loop [On a clock]
+    Watch[Watch CI]
+    Plan[Plan]
+    Build[Build PRs]
+    Merge[Merge green]
+  end
+  Loop --> GitHub[GitHub]
+  GitHub -->|checks / PRs| Loop
+  Loop --> Memory
+  Memory --> UI[Local UI :8888]
+  Loop -->|fail / approve / 21:00 report| Ping[Telegram]
+  Ping --> You
+  UI -->|Needs you| You
+```
+
+Job-level diagrams: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+---
+
+## Dashboard map
+
+| URL | What it is |
+|-----|------------|
+| http://127.0.0.1:8888/ | Roadmap |
+| http://127.0.0.1:8888/checkin | Hermes PRs + **Needs you** |
+| http://127.0.0.1:8888/jobs | Schedule / last run |
+| http://127.0.0.1:8888/audit | What ran, what blocked |
+| http://127.0.0.1:8888/instances | Environments (optional) |
+
+Telegram policy is the same three buckets as the table at the top: failure, human ACTION/APPROVAL (weekdays), daily report. Everything else is `[SILENT]` / empty stdout → audit + UI.
+
+---
+
+## Configure
+
+Start from [config.example.yaml](config.example.yaml).
+
+| Key | Why it matters |
+|-----|----------------|
 | `github.org` / `github.repos` | CI scan + PR monitor targets |
-| `products` | Roadmap / UI product keys |
+| `products` | Roadmap / UI keys |
 | `projects` | Local sentinel health checks |
-| `timezone` | Weekend HITL defer |
+| `timezone` | Weekend HITL defer + notify window |
 | `models.*` | Provider/model IDs for agent jobs |
+| `features.*` | Night executor, UI-live, GCP scan, check-in |
 
 Env: `HERMES_HOME`, `HERMES_BRAIN_DIR`, `HERMES_PROJECTS_ROOT`, `HERMES_OPS_CONFIG`, `HERMES_GH_TOKEN`, `HERMES_OPS_TIMEZONE`.
 
----
+Cheap PM/market model over SSH: [docs/REMOTE_QWEN_GPU.md](docs/REMOTE_QWEN_GPU.md). GitHub bot token: [docs/GITHUB_SERVICE_ACCOUNT.md](docs/GITHUB_SERVICE_ACCOUNT.md).
 
-## Telegram policy
-
-Only three kinds of messages:
-
-1. Failures / needs attention  
-2. Human ACTION / APPROVAL (weekdays)  
-3. Daily ops report  
-
-Everything else → `[SILENT]` / empty stdout → audit + UI.
+**Not shipped:** live brain content, cron history, tokens, product secrets.
 
 ---
 
-## Docs
-
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — diagrams + control planes  
-- [docs/OPS_DESIGN.md](docs/OPS_DESIGN.md) — design SoT  
-- [docs/OPS_MODELS.md](docs/OPS_MODELS.md) — model routing  
-- [docs/GITHUB_SERVICE_ACCOUNT.md](docs/GITHUB_SERVICE_ACCOUNT.md) — bot token  
-
-## Layout
+## What's in the tree
 
 ```text
 hermes-ops-kit/
-  config.example.yaml
-  scripts/
-  skills/
-  templates/brain/
-  templates/roadmaps.json
-  templates/cron/jobs.template.json
-  install/
-  docs/
+  config.example.yaml      # copy → ops-config.yaml
+  install/install.py       # copy scripts/skills, seed brain, render jobs
+  install/doctor.py        # preflight
+  scripts/                 # brain, audit, CI/PR, roadmap UI
+  skills/                  # brain, roadmap, HITL, autofix, …
+  templates/brain/         # empty starters
+  templates/cron/          # job contracts
+  docs/                    # design + architecture
 ```
+
+More: [docs/OPS_DESIGN.md](docs/OPS_DESIGN.md) · [docs/OPS_MODELS.md](docs/OPS_MODELS.md) · [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ## License
 

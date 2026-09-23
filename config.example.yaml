@@ -78,37 +78,36 @@ ui_live:
   #     url_env: HERMES_LIVE_APP_URL
   #     extra_env: {}
 
-# Day/night model ladder (portable design):
-#   Bonsai → PM / market / ops-review
-#   Day Grok → executor (09/11/13/15)
-#   Codex Sol → CI autofix + night executor
-#   Grok → UI live evening scan
+# Day/night model ladder (current design):
+#   qwen-gpu (optional SSH tunnel) → Grok 4.6 backup → PM / market / ops-review
+#   Day executor: hourly 09:00–17:00 weekdays, Grok 4.6 → Codex Sol
+#   Night executor: every 30m 00:00–04:00, Grok 4.6 → Codex Sol, deliver=local
+#   CI autofix: Grok 4.6 → Codex Sol
+#   Bonsai local: disabled (do not auto-start)
 models:
   pm:
-    provider: bonsai-local
-    model: bonsai-27b
+    provider: qwen-gpu
+    model: qwen3.6-ops
   market:
-    provider: bonsai-local
-    model: bonsai-27b
+    provider: qwen-gpu
+    model: qwen3.6-ops
   ops_review:
-    provider: bonsai-local
-    model: bonsai-27b
+    provider: qwen-gpu
+    model: qwen3.6-ops
   autofix:
-    provider: openai-codex
-    model: gpt-5.6-sol
+    provider: xai-oauth
+    model: grok-4.6
   executor:
     provider: xai-oauth
-    model: grok-4.5
+    model: grok-4.6
   executor_night:
-    provider: openai-codex
-    model: gpt-5.6-sol
+    provider: xai-oauth
+    model: grok-4.6
   ui_live:
     provider: xai-oauth
-    model: grok-4.5
-  # Day executor Hermes fallback_providers (in-flight slice only):
-  #   1) xai-oauth / grok-composer-2.5-fast
-  #   2) openai-codex / gpt-5.6-sol
-  # Night executor: empty fallback_providers (hard stop on 429).
+    model: grok-4.6
+  # Coding fallback (in-flight slice only): openai-codex / gpt-5.6-sol
+  # Dual-quota hard stop if Grok and Codex are both exhausted.
 
 # Optional advanced topology — jobs are always in jobs.template.json;
 # disable unused ones in the live cron registry after render.

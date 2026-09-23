@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 """Shared roadmap item identity, activity history, and relationship helpers."""
-
 from __future__ import annotations
 
 import json
@@ -81,12 +80,10 @@ def normalize_item(item: dict, *, now: str | None = None, migration_event: bool 
             if isinstance(relation, str) and relation.strip():
                 normalized_relations.append({"id": relation.strip(), "relation": "related"})
             elif isinstance(relation, dict) and relation.get("id"):
-                normalized_relations.append(
-                    {
-                        "id": str(relation["id"]),
-                        "relation": str(relation.get("relation") or "related"),
-                    }
-                )
+                normalized_relations.append({
+                    "id": str(relation["id"]),
+                    "relation": str(relation.get("relation") or "related"),
+                })
         if normalized_relations != item["related_items"]:
             item["related_items"] = normalized_relations
             changed = True
@@ -130,19 +127,18 @@ def normalize_roadmap(data: dict, *, now: str | None = None, migration_event: bo
 
 def find_item(data: dict, project: str, name_or_id: str) -> tuple[str, dict]:
     for found_project, phase, item in iter_items(data):
-        if found_project == project and (
-            item.get("name") == name_or_id or item.get("id") == name_or_id
-        ):
+        if found_project == project and (item.get("name") == name_or_id or item.get("id") == name_or_id):
             return phase, item
     raise KeyError(f"Roadmap item not found: {project} / {name_or_id}")
 
 
 def item_index(data: dict) -> dict[str, tuple[str, str, dict]]:
-    return {
-        item["id"]: (project, phase, item)
-        for project, phase, item in iter_items(data)
-        if item.get("id")
-    }
+    return {item["id"]: (project, phase, item) for project, phase, item in iter_items(data) if item.get("id")}
+
+
+def item_label(data: dict, item_id: str) -> str:
+    found = item_index(data).get(item_id)
+    return f"{found[0]}::{found[2].get('name', item_id)}" if found else item_id
 
 
 def _display(value) -> str:
@@ -184,6 +180,7 @@ def reconcile_update(
             changed = True
             continue
 
+        # Preserve immutable identity/history when an older client omitted them.
         item["id"] = old["id"]
         item["activity"] = list(old.get("activity", []))
         item["created_at"] = old.get("created_at", timestamp)
@@ -198,9 +195,7 @@ def reconcile_update(
         fields = sorted((set(old) | set(item)) - IGNORED_DIFF_FIELDS)
         for field in fields:
             if old.get(field) != item.get(field):
-                differences.append(
-                    f"{field}: {_display(old.get(field))} → {_display(item.get(field))}"
-                )
+                differences.append(f"{field}: {_display(old.get(field))} → {_display(item.get(field))}")
         if differences:
             append_activity(
                 item,

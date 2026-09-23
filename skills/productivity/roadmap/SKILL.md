@@ -18,7 +18,7 @@ metadata:
 **Check-in ritual:** http://127.0.0.1:8888/checkin — open bot PRs + Needs you (when `features.checkin_ui`)  
 **Human queue formatter:** `python "$HERMES_HOME/scripts/human_block_format.py"`
 
-Eligible executors: day `d4exec1014` (09/11/13/15) and optional night `d4execnight` (22:00–04:30, `deliver=local`). Release blocked items in the UI so either instance can resume.
+Eligible executors: day `d4exec1014` (hourly 09:00–17:00 weekdays) and optional night `d4execnight` (00:00–04:00, `deliver=local`). Release blocked items in the UI so either instance can resume.
 
 ## Owner classification (required)
 

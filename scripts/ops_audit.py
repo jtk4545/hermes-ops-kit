@@ -4,7 +4,7 @@
 Usage:
   python ops_audit.py append --job a1brain0600 --name "Brain consolidate" \\
     --status ok --summary "Refreshed INDEX" --detail "..." \\
-    --repo your-org/your-repo --pr-url https://... --roadmap-item "match/case"
+    --repo paladin-io/paxdev --pr-url https://... --roadmap-item "match/case"
 
   python ops_audit.py recent [--job ID] [--status blocked] [--day YYYY-MM-DD] [-n 10]
   python ops_audit.py day-summary [--day YYYY-MM-DD]
@@ -21,28 +21,20 @@ import sys
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
-from zoneinfo import ZoneInfo
 try:
-    from ops_config import timezone_name as _tz_name
+    from zoneinfo import ZoneInfo
+
+    TZ = ZoneInfo("America/Chicago")
 except Exception:
-    def _tz_name():
-        return 'America/Chicago'
+    # Bare Windows builds (uv cpython) may lack tzdata; fall back to fixed CT offset.
+    # Prefer installing tzdata into the Hermes venv and putting it on PYTHONPATH.
+    from datetime import timezone, timedelta
 
-TZ = ZoneInfo(_tz_name())
-try:
-    from hermes_paths import brain_dir, hermes_home
-except Exception:
-    def hermes_home():
-        env = os.environ.get("HERMES_HOME", "").strip()
-        if env:
-            return Path(env)
-        return Path.home() / ".local" / "share" / "hermes"
-
-    def brain_dir():
-        return hermes_home() / "brain"
-
-HERMES_HOME = hermes_home()
-BRAIN = brain_dir()
+    TZ = timezone(timedelta(hours=-6), name="America/Chicago-fallback")
+HERMES_HOME = Path(
+    os.environ.get("HERMES_HOME", Path(os.environ.get("LOCALAPPDATA", "")) / "hermes")
+)
+BRAIN = HERMES_HOME / "brain"
 JSONL = BRAIN / "AUDIT.jsonl"
 MD_LATEST = BRAIN / "AUDIT.md"
 
@@ -50,11 +42,16 @@ MD_LATEST = BRAIN / "AUDIT.md"
 CORE_JOB_IDS = {
     "a1brain0600",
     "41cb7755ae6d",
+    "h12gcloud0730",
     "026c0a4c82b7",
+    "b1fb039a276d",
+    "h11uilive23",
     "b2prmon30m",
     "c3pm0930",
     "d4exec1014",
+    "d4execnight",
     "e5market184",
+    "r1reddit1200",
     "f6ops2100",
     "g8sync0615",
 }
@@ -383,7 +380,7 @@ def main() -> int:
     a.add_argument("--detail", default="", help="Optional multi-line detail")
     a.add_argument("--artifact", action="append", default=[], help="Repeatable path/URL")
     a.add_argument("--artifacts", default="", help="Comma-separated paths/URLs")
-    a.add_argument("--repo", default="", help="e.g. your-org/your-repo")
+    a.add_argument("--repo", default="", help="e.g. paladin-io/paxdev")
     a.add_argument("--pr-url", default="", dest="pr_url", help="PR URL")
     a.add_argument("--roadmap-item", default="", dest="roadmap_item", help="Roadmap item name")
     a.add_argument(

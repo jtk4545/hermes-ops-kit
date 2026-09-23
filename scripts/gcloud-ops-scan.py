@@ -2,8 +2,7 @@
 """Read-only GCP ops + cost scan → PIPELINES / COSTS + wakeAgent gate.
 
 Uses gcloud CLI with a dedicated read-only service account
-(HERMES_GCLOUD_SA_KEY or GOOGLE_APPLICATION_CREDENTIALS or
-$HERMES_HOME/secrets/gcloud-ops.json).
+(HERMES_GCLOUD_SA_KEY or GOOGLE_APPLICATION_CREDENTIALS).
 
 Never deploys, mutates IAM, or reads Secret Manager payloads.
 """
@@ -19,9 +18,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from brain_paths import BRAIN_DIR, HERMES_HOME  # noqa: E402
+from brain_paths import BRAIN_DIR  # noqa: E402
 from brain_write import _atomic_write, replace_section  # noqa: E402
 
+SCRIPTS = Path(__file__).resolve().parent
+os.environ.setdefault("HERMES_HOME", str(SCRIPTS.parent))
+
+CONFIG_PATH = SCRIPTS / "gcloud_projects.json"
 JOB_ID = "h12gcloud0730"
 
 
@@ -33,6 +36,7 @@ def gcloud_exe() -> str:
         found = shutil.which(name)
         if found:
             return found
+    # Common Cloud SDK install on this machine
     candidates = [
         Path(os.environ.get("LOCALAPPDATA", ""))
         / "Google"
@@ -56,55 +60,13 @@ def gcloud_exe() -> str:
 GCLOUD = gcloud_exe()
 
 
-def _read_json_file(path: Path) -> dict:
-    if not path.is_file():
-        return {}
+def load_config() -> dict:
+    if not CONFIG_PATH.is_file():
+        return {"projects": [], "thresholds": {}}
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
+        return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
-        return {}
-
-
-def load_gcloud_config() -> dict:
-    """Merge ops-config gcloud.* with optional $HERMES_HOME/scripts/gcloud_projects*.json."""
-    cfg: dict = {
-        "enabled": False,
-        "projects": [],
-        "thresholds": {},
-        "billing_account_ids": [],
-        "billing_account_id": "",
-    }
-    try:
-        from ops_config import load_config
-
-        oc = load_config().get("gcloud") or {}
-        if isinstance(oc, dict):
-            cfg.update({k: v for k, v in oc.items() if v is not None})
-    except Exception:
-        pass
-
-    scripts = HERMES_HOME / "scripts"
-    file_cfg: dict = {}
-    for name in ("gcloud_projects.json", "gcloud_projects.example.json"):
-        file_cfg = _read_json_file(scripts / name)
-        if file_cfg.get("projects"):
-            break
-
-    # ops-config projects win when non-empty; else file
-    if not cfg.get("projects") and file_cfg.get("projects"):
-        cfg["projects"] = file_cfg["projects"]
-    if not cfg.get("thresholds") and file_cfg.get("thresholds"):
-        cfg["thresholds"] = file_cfg["thresholds"]
-    if not cfg.get("billing_account_ids") and file_cfg.get("billing_account_ids"):
-        cfg["billing_account_ids"] = file_cfg["billing_account_ids"]
-    if not cfg.get("billing_account_id") and file_cfg.get("billing_account_id"):
-        cfg["billing_account_id"] = file_cfg["billing_account_id"]
-
-    # File-only installs imply enabled when projects exist
-    if cfg.get("projects") and not isinstance(cfg.get("enabled"), bool):
-        cfg["enabled"] = True
-    return cfg
+        return {"projects": [], "thresholds": {}}
 
 
 def activate_sa_if_configured() -> str | None:
@@ -115,7 +77,8 @@ def activate_sa_if_configured() -> str | None:
         or ""
     ).strip()
     if not key:
-        default = HERMES_HOME / "secrets" / "gcloud-ops.json"
+        # Default path (user places key here; never commit)
+        default = Path(os.environ.get("LOCALAPPDATA", "")) / "hermes" / "secrets" / "hermes-gcloud-ops.json"
         if default.is_file():
             key = str(default)
     if not key:
@@ -124,6 +87,7 @@ def activate_sa_if_configured() -> str | None:
     if not key_path.is_file():
         return f"SA key missing: {key}"
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(key_path)
+    # Activate for gcloud CLI (idempotent)
     r = subprocess.run(
         [
             GCLOUD,
@@ -174,15 +138,16 @@ def gcloud_text(args: list[str], timeout: int = 90) -> tuple[str, int]:
     return out[-2000:], r.returncode
 
 
-def scan_cloud_run(project: str, region: str, watch: list[str], thresholds: dict) -> list[str]:
+def scan_cloud_run(project: str, region: str, watch: list[str]) -> list[str]:
     issues: list[str] = []
     notes: list[str] = []
     data, err = gcloud_json(
         ["run", "services", "list", f"--project={project}", f"--region={region}"]
     )
     if data is None:
+        # Projects without Cloud Run enabled are common — note, don't alert.
         if "SERVICE_DISABLED" in err or "has not been used" in err.lower():
-            return ["note: Cloud Run API disabled in this project"]
+            return [f"note: Cloud Run API disabled in this project"]
         issues.append(f"Cloud Run list failed: {err}")
         return issues
 
@@ -212,6 +177,7 @@ def scan_cloud_run(project: str, region: str, watch: list[str], thresholds: dict
         else:
             notes.append(f"Cloud Run `{name}` Ready url={url}")
 
+        # Error-log sampling is opt-in (slow across many projects).
         if os.environ.get("HERMES_GCLOUD_LOG_SCAN", "").strip() in {"1", "true", "yes"}:
             filt = (
                 f'resource.type="cloud_run_revision" '
@@ -232,7 +198,9 @@ def scan_cloud_run(project: str, region: str, watch: list[str], thresholds: dict
             )
             if code == 0:
                 count = len([ln for ln in logs.splitlines() if ln.strip()])
-                thr = float(thresholds.get("cloud_run_error_logs_1h", 25))
+                thr = float(
+                    (load_config().get("thresholds") or {}).get("cloud_run_error_logs_1h", 25)
+                )
                 if count >= thr:
                     issues.append(
                         f"Cloud Run `{name}` error logs last 1h: {count} (>= {thr:g})"
@@ -240,6 +208,7 @@ def scan_cloud_run(project: str, region: str, watch: list[str], thresholds: dict
                 else:
                     notes.append(f"Cloud Run `{name}` error logs 1h: {count}")
 
+    # Attach notes as non-issue lines prefixed
     return issues + [f"note: {n}" for n in notes]
 
 
@@ -264,10 +233,7 @@ def scan_functions(project: str, region: str) -> list[str]:
 def scan_billing(billing_accounts: list[str], thresholds: dict) -> list[str]:
     accounts = [a.strip() for a in billing_accounts if a and str(a).strip()]
     if not accounts:
-        return [
-            "note: billing_account_id(s) unset — skip cost scan "
-            "(set in ops-config gcloud.* or gcloud_projects.json)"
-        ]
+        return ["note: billing_account_id(s) unset — skip cost scan (set in gcloud_projects.json)"]
     out: list[str] = []
     warn = float(thresholds.get("daily_cost_usd_warn") or 50)
     for billing_account in accounts:
@@ -288,35 +254,27 @@ def scan_billing(billing_accounts: list[str], thresholds: dict) -> list[str]:
 try:
     from weekend_policy import telegram_hitl_allowed  # noqa: E402
 except Exception:  # pragma: no cover
-
     def telegram_hitl_allowed(when=None):
         return True
 
 
 def main() -> int:
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    cfg = load_gcloud_config()
-    if not cfg.get("enabled", False) and not (cfg.get("projects") or []):
-        print("gcloud ops scan disabled (set gcloud.enabled + projects in ops-config)")
-        print(json.dumps({"wakeAgent": False}))
-        return 0
-
+    cfg = load_config()
     projects = [p for p in cfg.get("projects") or [] if p.get("enabled", True)]
     thresholds = cfg.get("thresholds") or {}
     billing_ids = list(cfg.get("billing_account_ids") or [])
     if cfg.get("billing_account_id"):
         billing_ids.insert(0, str(cfg.get("billing_account_id")))
+    # dedupe preserve order
     seen_b: set[str] = set()
     billing_ids = [b for b in billing_ids if not (b in seen_b or seen_b.add(b))]
 
     sa_note = activate_sa_if_configured()
-    lines = [
-        f"Updated: {stamp}",
-        f"Auth: {sa_note or 'ambient gcloud user (no HERMES_GCLOUD_SA_KEY)'}",
-        "",
-    ]
+    lines = [f"Updated: {stamp}", f"Auth: {sa_note or 'ambient gcloud user (no HERMES_GCLOUD_SA_KEY)'}", ""]
     issues: list[str] = []
 
+    # Sanity: gcloud present
     ver, code = gcloud_text(["version", "--format=value(google-cloud-sdk)"])
     if code != 0:
         print("gcloud CLI not available")
@@ -324,7 +282,7 @@ def main() -> int:
         return 1
 
     if not projects:
-        lines.append("No projects configured (ops-config gcloud.projects or gcloud_projects.json)")
+        lines.append("No projects configured in gcloud_projects.json")
         issues.append("No GCP projects configured for Hermes ops scan")
 
     for proj in projects:
@@ -337,7 +295,7 @@ def main() -> int:
             lines.append("- invalid project entry")
             continue
 
-        run_lines = scan_cloud_run(pid, region, watch, thresholds)
+        run_lines = scan_cloud_run(pid, region, watch)
         fn_lines = scan_functions(pid, region)
         for ln in run_lines + fn_lines:
             if ln.startswith("note: "):
@@ -380,16 +338,14 @@ def main() -> int:
         for i in issues[:15]:
             print(f"  ! {i}")
         print("NEW_FAILURES=1")
+        # Do not wake code-autofix by default — infra/cost needs human or ops review
         print(json.dumps({"wakeAgent": False, "needsHuman": True, "issueCount": len(issues)}))
-        status = (
-            "blocked"
-            if any("failed" in i.lower() or "not ready" in i.lower() for i in issues)
-            else "ok"
-        )
+        status = "blocked" if any("failed" in i.lower() or "not ready" in i.lower() for i in issues) else "ok"
         summary = f"GCP ops: {len(issues)} issue(s); see PIPELINES (no autofix wake)"
     elif wake and not notify_ok:
+        # Brain/PIPELINES already written; suppress Telegram outside 9–5
         status = "ok"
-        summary = f"GCP ops: {len(issues)} issue(s); Telegram suppressed (outside notify window)"
+        summary = f"GCP ops: {len(issues)} issue(s); Telegram suppressed (outside 09:00–17:00 CT)"
     else:
         status = "silent"
         summary = "GCP ops scan clean"
@@ -408,7 +364,9 @@ def main() -> int:
     except Exception as exc:
         print(f"audit skipped: {exc}", file=sys.stderr)
 
-    return 1 if wake else 0
+    # Successful completed scan always exits 0. Findings live in AUDIT/PIPELINES/stdout;
+    # non-zero is reserved for runner failure (see no-agent-script-contract).
+    return 0
 
 
 if __name__ == "__main__":

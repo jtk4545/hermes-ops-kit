@@ -57,10 +57,11 @@ metadata:
 
 ## CI autofix
 
-1. Real fixes only; max 1 open `hermes-autofix` per repo.
+1. Real fixes only; max 1 open `hermes-autofix` per repo when creating new ones.
 2. Skip release/prod/hotfix/status-page noise.
 3. Read `PR_QUALITY` + PRODUCTS before patching.
-4. Escalate secrets/permissions cleanly via human-approval.
+4. If an open `hermes-autofix` or `hermes-exec` PR is red: amend that branch (≤1/UTC day + `HERMES_PR_AMEND: YYYY-MM-DD`); if still red → HITL. Do not open a second PR; keep the existing role label.
+5. Escalate secrets/permissions cleanly via human-approval. Skip drafts / approval-held PRs.
 
 ## Daily ops review
 

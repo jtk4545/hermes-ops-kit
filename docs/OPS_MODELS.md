@@ -2,31 +2,31 @@
 
 Configure providers in Hermes auth / `hermes model`, then set the same IDs under `models:` in `ops-config.yaml`.
 
-| Job class | Provider / model (template default) | Schedule (timezone from config) | Notes |
-|-----------|-------------------------------------|----------------------------------|-------|
+Cheap ops = a remote or local small model (template: `qwen-gpu` / `qwen3.6-ops`) with Grok as backup. Coding jobs use Grok → Codex Sol. Local Bonsai is **off** in the current design (VRAM); do not auto-start it.
+
+| Job class | Provider / model (template) | Schedule (timezone from config) | Notes |
+|-----------|-----------------------------|----------------------------------|-------|
 | Scripts (PR monitor, human queue, audit, …) | `no_agent` | frequent | **$0 — never throttle** |
-| PM + market + daily ops review | `bonsai-local` / `bonsai-27b` | 09:30 / 18:00 / 21:00 | free local |
-| CI autofix | `openai-codex` / `gpt-5.6-sol` | **09:30, 15:30** | primary; one Grok try only if Codex exhausts mid-fix; silent if green |
-| Roadmap executor **day** (`d4exec1014`) | `xai-oauth` / `grok-4.5` → Composer 2.5 → Codex Sol | **09:00, 11:00, 13:00, 15:00** | timebox **20–30m**; fallbacks finish current slice only |
-| Roadmap executor **night** (`d4execnight`) | `openai-codex` / `gpt-5.6-sol` | every 30m, **22:00–04:30** | strict empty fallback; **`deliver=local`, never Telegram**; stop on 429/auth/quota |
-| UI live autofix (optional) | `xai-oauth` / `grok-4.5` | 21:00 | frugal; wake on failures |
+| PM + market + daily ops review | `qwen-gpu` / `qwen3.6-ops` → `xai-oauth` / `grok-4.6` | 09:30 / 18:00 / 21:00 | SSH-tunneled Ollama or any cheap OpenAI-compatible host |
+| CI autofix | `xai-oauth` / `grok-4.6` → `openai-codex` / `gpt-5.6-sol` | **09:30, 15:30** | Grok primary; Sol fallback; wake on branch CI **or** red Hermes PRs |
+| Roadmap executor **day** (`d4exec1014`) | `xai-oauth` / `grok-4.6` → Codex Sol | **hourly 09:00–17:00 weekdays** | timebox **20–30m**; fallback finishes current slice only |
+| Roadmap executor **night** (`d4execnight`) | `xai-oauth` / `grok-4.6` → Codex Sol | every 30m, **00:00–04:00** | **`deliver=local`, never Telegram**; stop on dual quota |
+| UI live autofix (optional) | `xai-oauth` / `grok-4.6` → Codex Sol | 21:00 | frugal; wake on failures |
 | GCP ops (optional) | `no_agent` | 07:30 | read-only scan; Telegram on issues |
-| Interactive chat | prefer Grok carefully / manual | — | avoid burning weekly Grok on chat thrash |
+| Interactive chat | `xai-oauth` / `grok-4.6` | — | typical desktop default |
 
-**Alternate lean day schedule (document only):** some installs prefer day executor at 10:00 + 14:00 and CI at 08/12/16/20. The portable Grok-frugal template default is the four-slot day (`09,11,13,15`) + CI (`09:30,15:30`) above — change via cron registry / config comments, not by inventing a second template.
+**Cheap-model tunnel:** SSH local-forward `127.0.0.1:11435` → remote Ollama `:11434`. See [REMOTE_QWEN_GPU.md](REMOTE_QWEN_GPU.md). Example Windows helper: `scripts/start-ollama-gpu-tunnel.ps1` (host/user/port from env, not hardcoded).
 
-**Executor audit:** Both day and night prompts append directly on every outcome (including `[SILENT]`); the no-agent audit ingester also covers both and reconciles scheduler completion state when a run has no usable response artifact.
+**Fallback chains:** ops tier qwen → **Grok 4.6**; coding Grok → Codex Sol. No Bonsai auto-fallback.
 
-**Fallback chains:** day executor Grok 4.5 → **Composer 2.5 → Codex Sol** for the in-flight slice; UI-live Grok → Codex Sol; night executor has no fallback. No Copilot/Bonsai auto-fallback for coding.
-
-**HARD STOP:** If Grok **and** Codex are exhausted/unavailable → coding crons stop, audit `QUOTA:`, do not thrash.
+**HARD STOP:** If Grok **and** Codex are exhausted/unavailable → coding crons stop, audit `QUOTA:`, do not thrash. Scripts + cheap-ops jobs still run.
 
 **Notify window:** Mon–Fri **09:00–17:00** by default (`ops-config.yaml` → `notify_window`); daily ops report always allowed.
 
-**Auth:** run `hermes auth add xai-oauth` and `hermes auth add openai-codex` (plus local/cheap) before creating agent jobs.
+**Auth:** `hermes auth add xai-oauth` and `hermes auth add openai-codex` before creating agent jobs. A cheap-ops host needs an SSH key or whatever your tunnel uses.
 
-**Cost ladder for new jobs:** `no_agent` → Bonsai → day Grok → Codex Sol for CI/night execution.
+**Cost ladder for new jobs:** `no_agent` → qwen-gpu (if tunnel) → day Grok → Codex Sol.
 
 Full design: `OPS_DESIGN.md`.
 
-Telegram home channel must match your allowlisted user id. Cron deliver target for human-facing jobs: `telegram` (with `[SILENT]` / empty stdout for routine success). Night executor: `local` only.
+Telegram home channel must match your allowlisted user id. Human-facing jobs: `telegram` (with `[SILENT]` / empty stdout for routine success). Night executor: `local` only.

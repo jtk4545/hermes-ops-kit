@@ -5,11 +5,10 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from hermes_paths import roadmap_file
 from roadmap_history import append_activity, normalize_item
 
 HOME = Path.home() / ".hermes"
-ROADMAP = roadmap_file()
+ROADMAP = HOME / "roadmaps.json"
 STATE = HOME / "roadmap_executor_state.json"
 
 

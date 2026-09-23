@@ -13,6 +13,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from brain_paths import BRAIN_DIR, DEFAULT_BUDGETS, HERMES_HOME, ROADMAP_FILE, SECTIONS  # noqa: E402
 from brain_write import _atomic_write, _trim  # noqa: E402
 
+# Keep the audit writer on the same Hermes home even when the cron environment
+# lacks HERMES_HOME (otherwise it writes to a cwd-relative, invisible bus).
+import os
+os.environ.setdefault("HERMES_HOME", str(HERMES_HOME))
+
 CRON_OUT = HERMES_HOME / "cron" / "output"
 
 

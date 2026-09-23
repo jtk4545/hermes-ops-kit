@@ -50,10 +50,10 @@ Prefer audit events over raw cron dumps:
 | Tier | Jobs / use |
 |------|------------|
 | `no_agent` scripts | PR monitor, human queue, audit, brain, optional GCP, UI watchdog — **never throttle** |
-| Bonsai | PM, market, daily ops review |
-| Day Grok (`xai-oauth` / `grok-4.5`) | `d4exec1014` **09:00, 11:00, 13:00, 15:00** · **20–30m**; fallback **Composer 2.5 → Codex Sol** for in-flight slice only |
-| CI autofix Codex Sol | `026c0a4c82b7` **09:30 + 15:30** — Sol primary; one Grok try only if Codex 429 mid-fix |
-| Night Codex Sol | `d4execnight` every 30m **22:00–04:30** — empty fallback; **`deliver=local`, never Telegram**; stop on 429/auth/quota |
+| Cheap ops (`qwen-gpu` / Grok backup) | PM, market, daily ops review |
+| Day Grok (`xai-oauth` / `grok-4.6`) | `d4exec1014` **hourly 09:00–17:00 weekdays** · **20–30m**; fallback **Codex Sol** for in-flight slice only |
+| CI autofix | `026c0a4c82b7` **09:30 + 15:30** — Grok primary; Codex Sol fallback |
+| Night executor | `d4execnight` every 30m **00:00–04:00** — Grok → Sol; **`deliver=local`, never Telegram**; dual-quota stop |
 
 **Dual-quota HARD STOP:** if Grok **and** Codex exhausted/429 → coding jobs stop; audit `QUOTA:…`; one short Telegram line (notify window); no Copilot/Bonsai thrash.
 
@@ -62,7 +62,7 @@ Prefer audit events over raw cron dumps:
 You **may** apply these without asking:
 
 - Tighten cron prompts for `[SILENT]` / brain_read / audit recent+append / HITL wording
-- Pin `provider`/`model` per day/night ladder; keep PM/market/ops-review on bonsai
+- Pin `provider`/`model` per day/night ladder; keep PM/market/ops-review on qwen-gpu (Grok backup)
 - Fix script path typos; restore **QUOTA HARD STOP** wording if stripped from coding jobs
 - Update skill text (dev-test-loop, human-approval, roadmap, market-research, auto-pr-fixer)
 - Append `$HERMES_HOME/brain/OPS_CHANGELOG.md` and `$HERMES_HOME/brain/DAILY_REPORTS.md`

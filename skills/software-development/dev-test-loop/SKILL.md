@@ -21,7 +21,7 @@ metadata:
 
 Use this skill for every roadmap execution turn. Goal: ship verified progress in the job’s timebox — or stop cleanly with a **clear human request** / **quota stop**.
 
-**Cron IDs:** day `d4exec1014` (09:00/11:00/13:00/15:00, Grok 4.5 → Composer 2.5 → Codex Sol, 20–30m); night `d4execnight` (every 30m from 22:00 through 04:30, Codex Sol only; 429 stops immediately; `deliver=local`). Both append exact work, verification, artifacts, and next step to the touched roadmap item.
+**Cron IDs:** day `d4exec1014` (hourly 09:00–17:00 weekdays, Grok 4.6 → Codex Sol, 20–30m); night `d4execnight` (every 30m from 00:00 through 03:30, Grok → Sol; dual-quota stop; `deliver=local`). Both append exact work, verification, artifacts, and next step to the touched roadmap item.
 
 ## Before coding
 
